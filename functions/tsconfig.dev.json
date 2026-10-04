@@ -6,6 +6,7 @@
   "include": [
     ".eslintrc.js",
     "vitest.integration.config.ts",
+    "vitest.unit.config.ts",
     "vitest.rules.config.ts"
   ]
 }

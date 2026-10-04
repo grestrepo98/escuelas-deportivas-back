@@ -42,9 +42,8 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 │   ├── .github/workflows/          lint, typecheck, tests, despliegue de Hosting
 │   └── docs/                       copia de los docs de producto + arquitectura del front
 └── escuelas-back/                  repo grestrepo98/escuelas-back
-    ├── package.json                raíz con "workspaces" de npm, solo del back
-    ├── functions/                  Cloud Functions 2nd gen, Node 24, TypeScript
-    ├── packages/domain/            reglas de negocio puras (entidades, casos de uso, puertos)
+    ├── functions/                  único paquete npm: Cloud Functions 2nd gen, Node 24, TypeScript
+    │   └── src/<módulo>/           domain · application · infrastructure (ADR 0008)
     ├── firebase.json, firestore.rules, storage.rules, firestore.indexes.json
     ├── .github/workflows/          lint, typecheck, tests + emulador, despliegue
     └── docs/                       docs de producto, ADRs y arquitectura del back
@@ -69,6 +68,8 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 
 **Decisión:** dos repositorios, `escuelas-front` y `escuelas-back`, en GitHub cuenta personal `grestrepo98`, privados (aún no creados), agrupados en un GitHub Project.
 
+**Actualización (spec 03, 2026-10-04):** dentro de `escuelas-back` ya no hay workspace npm ni `packages/domain`: todo el código vive en `functions/src`, por módulo y con tres capas (ADR 0008).
+
 **Estado:** Acordado.
 
 ### D-02 · Arquitectura hexagonal en el backend
@@ -80,6 +81,8 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 **Alternativa:** escribir la lógica directamente dentro de cada function. Más rápido al inicio, pero las reglas del dinero quedan atadas al SDK y son más difíciles de probar.
 
 **Decisión:** hexagonal en el backend. Requisito adicional: el proyecto lleva **documentación pensada para que un desarrollador nuevo lo entienda**. Mínimo: un `README` por paquete, un documento de arquitectura (capas, puertos y adaptadores, flujo de un caso de uso de punta a punta), una guía de cómo agregar un caso de uso o un adaptador, y registro de decisiones de arquitectura (ADR) para las decisiones de este documento. La documentación se escribe junto con el código, no al final.
+
+**Actualización (spec 03, 2026-10-04):** `domain` deja de ser un paquete aparte. Cada módulo de `functions/src` tiene `domain` (reglas puras), `application` (casos de uso y puertos) e `infrastructure` (adaptadores Firestore y callables). La frontera la verifica ESLint y la prueba un test (ADR 0008).
 
 **Estado:** Acordado.
 

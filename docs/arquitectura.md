@@ -1,10 +1,14 @@
 # Arquitectura del backend
 
-Estado: refleja lo construido por las specs 01 (fundaciones) y 02 (estructura de
-la organización). Las decisiones numeradas (D-xx) están en `plan-tecnico.md`; las
+Estado: refleja lo construido por las specs 01 (fundaciones), 02 (estructura de
+la organización) y 03 (reestructura modular de `functions`). Las decisiones numeradas (D-xx) están en `plan-tecnico.md`; las
 de cada spec, en `adr/`.
 
 ## Capas
+
+Todo el código vive en `functions/src`, organizado **por módulo** (`audit`,
+`membership`, `tenant`, `structure`) más `shared/` y `scripts/`. Cada módulo
+tiene tres capas (ADR 0008):
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -12,20 +16,29 @@ de cada spec, en `adr/`.
 └──────────────────────────────┬───────────────────────────────┘
                                │ HTTPS + ID token de Firebase Auth
 ┌──────────────────────────────▼───────────────────────────────┐
-│ functions/src/callables/*   (borde)                          │
+│ <módulo>/infrastructure/callables   (borde)                  │
 │   sesión → zod → autorización por membresía → caso de uso    │
 ├──────────────────────────────────────────────────────────────┤
-│ packages/domain             (negocio puro, sin Firebase)     │
-│   casos de uso + reglas + PUERTOS (interfaces)               │
+│ <módulo>/application   casos de uso + PUERTOS (interfaces)   │
+│ <módulo>/domain        entidades y reglas puras              │
 ├──────────────────────────────────────────────────────────────┤
-│ functions/src/adapters/firestore/   (implementan los puertos)│
+│ <módulo>/infrastructure/firestore  (implementan los puertos) │
 └──────────────────────────────┬───────────────────────────────┘
                                │ Admin SDK
                           Firestore
 ```
 
-La dependencia apunta hacia adentro: `functions` conoce al dominio; el dominio
-no conoce a nadie. Lo hace cumplir ESLint (`packages/domain/.eslintrc.js`).
+| Capa | Contiene | Puede importar |
+| --- | --- | --- |
+| `domain` | entidades, validadores y funciones puras | `shared/domain` y el `domain` de otros módulos |
+| `application` | casos de uso, puertos y sus dobles en memoria (`testing/`) | `domain` y `application` |
+| `infrastructure` | adaptadores de Firestore, callables, `authorize` | todo, incluidos Firebase y zod |
+
+La dependencia apunta hacia adentro. Lo hace cumplir ESLint
+(`no-restricted-imports` en `functions/.eslintrc.js`) y lo prueba
+`shared/infrastructure/lint-boundaries.test.ts`: `domain` y `application` no
+importan Firebase, `@google-cloud/*` ni `zod`, y ninguno importa `infrastructure`.
+`shared/application/unit-of-work.ts` es la única excepción de composición (ADR 0008).
 
 **Todo es una callable (D-03).** El cliente nunca toca Firestore ni Storage:
 `firestore.rules` y `storage.rules` son `allow read, write: if false`, y
@@ -33,7 +46,7 @@ no conoce a nadie. Lo hace cumplir ESLint (`packages/domain/.eslintrc.js`).
 
 ## Casos de uso y callables
 
-| Callable | Caso de uso (dominio) | Quién | ADR |
+| Callable | Caso de uso (`application`) | Quién | ADR |
 | --- | --- | --- | --- |
 | `listMyMemberships` | lectura pura (consulta en el adaptador) | cualquier sesión | 0002 |
 | `changeMembershipRole` | `ChangeMembershipRole` | `owner` | 0004 |
@@ -45,7 +58,7 @@ no conoce a nadie. Lo hace cumplir ESLint (`packages/domain/.eslintrc.js`).
 
 ## Puertos y adaptadores
 
-| Puerto (dominio) | Adaptador (functions) | Doble de prueba (dominio) |
+| Puerto (`application`) | Adaptador (`infrastructure/firestore`) | Doble de prueba (`application/testing`) |
 | --- | --- | --- |
 | `MembershipRepository` | `FirestoreMembershipRepository` | `InMemoryMembershipRepository` |
 | `TenantRepository` | `FirestoreTenantRepository` | `InMemoryTenantRepository` |
@@ -53,6 +66,9 @@ no conoce a nadie. Lo hace cumplir ESLint (`packages/domain/.eslintrc.js`).
 | `AuditLogWriter` | `FirestoreAuditLogWriter` | `InMemoryAuditLogWriter` |
 | `UnitOfWork` | `FirestoreUnitOfWork` (`runTransaction`) | `InMemoryUnitOfWork` (snapshot y rollback) |
 | `Clock` | `systemClock` | `FakeClock` |
+
+Cada puerto, su adaptador y su doble viven en su módulo; `UnitOfWork` y `Clock`
+son de `shared`.
 
 `UnitOfWork.run(work)` entrega a `work` repositorios **ligados a la
 transacción** (`memberships`, `tenants`, `venues`, `categories`, `groups` y
@@ -70,8 +86,8 @@ en la Fase 2.
 ### Lecturas
 
 - `listMyMemberships` no pasa por el dominio: es una consulta de lectura
-  (`adapters/firestore/my-memberships-query.ts`).
-- `getStructure` lee con `readStructure` (`adapters/firestore/structure-query.ts`),
+  (`membership/infrastructure/firestore/my-memberships-query.ts`).
+- `getStructure` lee con `readStructure` (`structure/infrastructure/firestore/structure-query.ts`),
   descarta lo cerrado salvo `includeClosed`, aplica `visibleStructure` del dominio
   y devuelve DTO con fechas ISO 8601 en UTC y sin `tenantId`.
 
@@ -125,7 +141,7 @@ sequenceDiagram
     participant C as Cliente
     participant F as callable changeMembershipRole
     participant A as authorizeTenantMember
-    participant U as ChangeMembershipRole (dominio)
+    participant U as ChangeMembershipRole (application)
     participant DB as Firestore (transacción)
 
     C->>F: {tenantId, targetUid, newRole, reason?} + ID token
@@ -171,7 +187,7 @@ las reglas de negocio de los valores, el dominio.
 
 | Suite | Qué prueba | Emulador |
 | --- | --- | --- |
-| `test:domain` | reglas del dominio con dobles | no |
+| `test:unit` | dominio y casos de uso con dobles, y las fronteras de capas | no |
 | `test:rules` | Firestore y Storage deniegan todo al cliente, también en sedes, categorías y grupos | Firestore + Storage |
 | `test:integration` | adaptadores, atomicidad, callables por HTTP, seed, alta de organización | Auth + Firestore + Functions |
 | `smoke:dev` / `smoke:emulator` | callables desplegadas (o locales) de punta a punta | Functions desplegadas / emuladores |
@@ -185,10 +201,12 @@ Los emuladores usan proyectos `demo-*`, sin acceso a la nube.
 | `npm run seed:emulator` / `seed:dev` | datos de prueba idempotentes (ADR 0005 y 0007) |
 | `npm run tenant:create -- --target … --tenant-id … --name … --owner-email …` | alta de una organización con su dueño (ADR 0007) |
 
-Ambos exigen `--target` y no existe `prod`.
+Se corren desde `functions/`. Ambos exigen `--target` y no existe `prod`.
 
 ## Empaquetado y despliegue
 
-`functions/` empaqueta el dominio con esbuild (ADR 0001). Región `us-central1`
+`functions/` es el único paquete npm y se empaqueta con esbuild a `lib/index.js`
+(entrada `src/index.ts`; ADR 0008, que reemplaza al 0001). Los scripts de
+operación no viajan al despliegue. Región `us-central1`
 (ADR 0003). Este repo despliega `functions`, `firestore` y `storage`; el front
 despliega solo hosting.

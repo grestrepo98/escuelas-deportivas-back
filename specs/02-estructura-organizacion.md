@@ -1,5 +1,7 @@
 # SPEC 02 — Estructura de la organización (Fase 1 técnica, parte 1)
 
+> **Nota:** Código reubicado por la spec 03, ver ADR 0008. Las rutas de este documento describen cómo se implementó; hoy el código vive en `functions/src/<módulo>/`.
+
 > **Status:** Implemented
 > **Depends on:** SPEC 01 (`specs/01-fundaciones-backend.md`). Contexto en `docs/plan-tecnico.md` (Fase 1) y `docs/producto.md` (§7.1, §7.19, §6).
 > **Date:** 2026-10-03

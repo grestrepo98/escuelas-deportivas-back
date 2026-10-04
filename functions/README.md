@@ -1,23 +1,32 @@
 # `functions`
 
-Cloud Functions (2.ª generación, Node 24, TypeScript). Expone los casos de uso
-del dominio como callables y contiene los adaptadores de Firestore. Región fija
+Cloud Functions (2.ª generación, Node 24, TypeScript). Es el único paquete npm del
+repo y contiene todo el código del backend, organizado por módulo (ADR 0008):
+dominio, casos de uso, adaptadores de Firestore y callables. Región fija
 `us-central1` (ADR 0003).
 
 ## Estructura
 
 ```
 src/
-├── index.ts                      # setGlobalOptions + exporta las callables
-├── callables/<nombre>/
-│   ├── schema.ts                 # zod de entrada y salida (el contrato)
-│   └── index.ts                  # onCall: sesión → validar → autorizar → caso de uso
-├── adapters/firestore/           # implementan los puertos del dominio
-└── shared/                       # authorize, callable (parseInput), errors, clock, admin
-test/
-├── rules/                        # reglas de Firestore/Storage (emulador)
-└── integration/                  # adaptadores y callables (emulador)
+├── index.ts                      # setGlobalOptions + exporta las 10 callables
+├── shared/                       # domain (DomainError, Clock) · application (UnitOfWork)
+│                                 # · infrastructure (admin, callable, toHttpsError, unit of work)
+├── audit/ membership/ tenant/ structure/
+│   ├── domain/                   # entidades y reglas puras
+│   ├── application/              # casos de uso, puertos y testing/ (dobles en memoria)
+│   └── infrastructure/
+│       ├── firestore/            # adaptadores de los puertos
+│       └── callables/<nombre>/   # schema.ts (zod, el contrato) + index.ts (onCall)
+└── scripts/                      # seed, smoke-dev, create-tenant (no viajan al despliegue)
+test/rules/                       # reglas de Firestore/Storage (emulador)
 ```
+
+Los tests viven junto al código: `*.test.ts` (unitarios) y
+`*.integration.test.ts` (emulador). `domain` y `application` no importan Firebase,
+`zod` ni `infrastructure`: lo hace cumplir `.eslintrc.js` y lo prueba
+`src/shared/infrastructure/lint-boundaries.test.ts`. Para sumar un caso de uso, ver
+`docs/guias/agregar-caso-de-uso.md`.
 
 ## Callables
 
@@ -48,13 +57,13 @@ el front mantiene su propia copia en su adaptador de datos (D-01).
 
 ## Comandos
 
-Desde la raíz del repo:
+Todo se corre desde `functions/` (no hay `package.json` en la raíz):
 
 ```bash
-npm run build              # tsc del dominio + typecheck + bundle esbuild de functions
+npm run build              # typecheck + bundle esbuild
 npm run lint
 npm run typecheck
-npm run test:domain        # sin emulador
+npm run test:unit          # sin emulador
 npm run test:rules         # emuladores Firestore + Storage
 npm run test:integration   # compila y levanta Auth + Firestore + Functions
 npm run seed:emulator      # datos de prueba (dentro de emulators:exec o start)
@@ -70,9 +79,11 @@ npm run smoke:emulator     # verifica el propio smoke test en local
 ## Empaquetado
 
 Cloud Functions solo sube esta carpeta, así que `build.mjs` empaqueta con
-esbuild a `lib/index.js` e incluye `@escuelas/domain`. Las `dependencies`
-(`firebase-admin`, `firebase-functions`, `zod`) quedan externas. Detalle en
-`docs/adr/0001-empaquetado-del-workspace.md`.
+esbuild a `lib/index.js` desde `src/index.ts`: el código propio (todos los módulos)
+queda dentro del bundle y los scripts y tests no, porque `index.ts` no los alcanza.
+Las `dependencies` (`firebase-admin`, `firebase-functions`, `zod`) quedan externas
+y Cloud Build las instala desde `package-lock.json`. Detalle en
+`docs/adr/0008-estructura-modular-en-functions.md`.
 
 > Cualquier paquete nuevo que deba existir en producción va en `dependencies`;
 > si va en `devDependencies`, esbuild lo incluirá en el bundle.
@@ -82,12 +93,12 @@ esbuild a `lib/index.js` e incluye `@escuelas/domain`. Las `dependencies`
 El emulador no replica el 100 % de producción. Caso real del paso 15: en Cloud Functions el
 runtime ya crea apps de Admin con otro nombre, así que `getApps().length === 0` no sirve para
 decidir si inicializar la app por defecto (daba `app/no-app` y un 500 solo en `dev`).
-`shared/admin.ts` busca la app `[DEFAULT]` por nombre y `test/integration/admin.test.ts` lo
-cubre. Por eso el humo en `dev` (`npm run smoke:dev`) es parte de la verificación.
+`shared/infrastructure/admin.ts` busca la app `[DEFAULT]` por nombre y
+`shared/infrastructure/admin.integration.test.ts` lo cubre. Por eso el humo en `dev` (`npm run smoke:dev`) es parte de la verificación.
 
 ## Seed
 
-`scripts/seed.ts` (en la raíz) crea `tenant-a` con un usuario por rol y
+`src/scripts/seed.ts` crea `tenant-a` con un usuario por rol y
 `tenant-b` con un `owner`, de forma idempotente. El destino es obligatorio
 (`--target emulator|dev`), `prod` no existe como opción y `dev` exige
 `SEED_PASSWORD`. Para `dev` hacen falta credenciales de aplicación
@@ -101,7 +112,7 @@ desvió (por ejemplo, una sede seed cerrada).
 
 ## Alta de una organización
 
-`scripts/create-tenant.ts` crea el tenant, el usuario dueño en Auth (o reutiliza
+`src/scripts/create-tenant.ts` crea el tenant, el usuario dueño en Auth (o reutiliza
 el existente) y su membresía `owner`, e imprime un **enlace de restablecimiento
 de contraseña**: quien lo abre fija la clave del dueño, así que se envía por un
 canal privado.
