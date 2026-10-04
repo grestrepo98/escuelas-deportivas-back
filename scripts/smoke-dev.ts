@@ -1,8 +1,15 @@
 import {initializeApp} from "firebase-admin/app";
 import {getFirestore} from "firebase-admin/firestore";
-import {parseSeedArgs, SEED_USERS, type SeedUser} from "./seed-lib.js";
+import {
+  parseSeedArgs,
+  SEED_CATEGORIES,
+  SEED_GROUPS,
+  SEED_USERS,
+  SEED_VENUES,
+  type SeedUser,
+} from "./seed-lib.js";
 
-// End-to-end smoke test of the deployed callables (spec 01, step 15).
+// End-to-end smoke test of the deployed callables (specs 01 and 02).
 // It signs in as seeded users and calls the real functions over HTTPS.
 //
 //   SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev
@@ -169,6 +176,129 @@ async function main(): Promise<void> {
     expectEqual((await membershipRef.get()).data()?.role, "coordinator",
       "role after restore");
   });
+
+  // Spec 02: organization structure.
+  type Dto = {id: string};
+  const idsOf = (items: Dto[]) => items.map((i) => i.id).sort();
+  const sorted = (items: string[]) => [...items].sort();
+  const structureOf = async (token: string, data: object = {}) =>
+    call("getStructure", {tenantId: "tenant-a", ...data}, token);
+
+  const teacherA = userOf("teacher", "tenant-a");
+  const guardianA = userOf("guardian", "tenant-a");
+  const coordinatorVenueId = coordinatorA.scope.venueIds[0];
+  const teacherGroup = SEED_GROUPS.find(
+    (g) => g.id === teacherA.scope.groupIds[0])!;
+  const seedIds = (items: {id: string; tenantId: string}[]) =>
+    items.filter((i) => i.tenantId === "tenant-a").map((i) => i.id);
+
+  await check("the owner sees the seeded structure of tenant-a", async () => {
+    const {status, body} = await structureOf(tokenA);
+    expectEqual(status, 200, "status");
+    for (const [kind, expected] of [
+      ["venues", seedIds(SEED_VENUES)],
+      ["categories", seedIds(SEED_CATEGORIES)],
+      ["groups", seedIds(SEED_GROUPS)],
+    ] as const) {
+      const got = idsOf(body.result[kind]);
+      const missing = expected.filter((id) => !got.includes(id));
+      expectEqual(missing, [], `seeded ${kind} missing from the owner view`);
+    }
+  });
+
+  await check("the seed coordinator sees only their venue and its groups",
+    async () => {
+      const token = await signIn(coordinatorA);
+      const {status, body} = await structureOf(token);
+      expectEqual(status, 200, "status");
+      expectEqual(idsOf(body.result.venues), [coordinatorVenueId], "venues");
+      const groups: {id: string; venueId: string}[] = body.result.groups;
+      expectEqual(groups.every((g) => g.venueId === coordinatorVenueId), true,
+        "every group belongs to the coordinator's venue");
+      const expected = SEED_GROUPS
+        .filter((g) => g.venueId === coordinatorVenueId).map((g) => g.id);
+      expectEqual(
+        expected.filter((id) => !idsOf(groups).includes(id)), [],
+        "seeded groups of the coordinator's venue");
+      expectEqual(
+        seedIds(SEED_CATEGORIES)
+          .filter((id) => !idsOf(body.result.categories).includes(id)),
+        [], "seeded categories");
+    });
+
+  await check("the seed teacher sees only their group, venue and category",
+    async () => {
+      const token = await signIn(teacherA);
+      const {status, body} = await structureOf(token);
+      expectEqual(status, 200, "status");
+      expectEqual(idsOf(body.result.groups), [teacherGroup.id], "groups");
+      expectEqual(idsOf(body.result.venues), [teacherGroup.venueId], "venues");
+      expectEqual(
+        idsOf(body.result.categories), [teacherGroup.categoryId], "categories");
+    });
+
+  await check("a guardian cannot read the structure", async () => {
+    const token = await signIn(guardianA);
+    const {status, body} = await structureOf(token);
+    expectEqual([status, body.error?.status], [403, "PERMISSION_DENIED"],
+      "status");
+  });
+
+  await check("a tenant-b owner cannot read or write tenant-a structure",
+    async () => {
+      const read = await structureOf(tokenB);
+      expectEqual([read.status, read.body.error?.status],
+        [403, "PERMISSION_DENIED"], "read");
+      const write = await call("saveVenue", {
+        tenantId: "tenant-a", name: "Intruso", address: "x",
+      }, tokenB);
+      expectEqual([write.status, write.body.error?.status],
+        [403, "PERMISSION_DENIED"], "write");
+    });
+
+  await check("a non-owner cannot write structure", async () => {
+    const token = await signIn(coordinatorA);
+    const {status, body} = await call("saveVenue", {
+      tenantId: "tenant-a", name: "Sin permiso", address: "x",
+    }, token);
+    expectEqual([status, body.error?.status], [403, "PERMISSION_DENIED"],
+      "status");
+  });
+
+  await check("the owner creates and closes a venue, leaving its audit trail",
+    async () => {
+      const name = `Smoke ${Date.now()}`;
+      const created = await call("saveVenue", {
+        tenantId: "tenant-a", name, address: "Calle de prueba 1",
+      }, tokenA);
+      expectEqual(created.status, 200, "create status");
+      const venueId: string = created.body.result.venueId;
+
+      const closed = await call("setVenueStatus", {
+        tenantId: "tenant-a", venueId, status: "closed", reason: "smoke",
+      }, tokenA);
+      expectEqual([closed.status, closed.body.result?.status],
+        [200, "closed"], "close response");
+
+      const venue = (await db.doc(`tenants/tenant-a/venues/${venueId}`).get());
+      expectEqual(venue.data()?.status, "closed", "venue stays, closed");
+
+      const entries = await db.collection("tenants/tenant-a/auditLog")
+        .where("target.id", "==", venueId).get();
+      expectEqual(
+        sorted(entries.docs.map((d) => d.data().action as string)),
+        ["venue.closed", "venue.created"], "audit actions");
+      expectEqual(
+        entries.docs.every((d) => d.data().actorUid === ownerA.uid), true,
+        "audit actor");
+
+      const hidden = await structureOf(tokenA);
+      expectEqual(idsOf(hidden.body.result.venues).includes(venueId), false,
+        "closed venue hidden by default");
+      const shown = await structureOf(tokenA, {includeClosed: true});
+      expectEqual(idsOf(shown.body.result.venues).includes(venueId), true,
+        "closed venue returned with includeClosed");
+    });
 
   console.log(failures === 0 ? "\nAll smoke checks passed." :
     `\n${failures} smoke check(s) FAILED.`);
