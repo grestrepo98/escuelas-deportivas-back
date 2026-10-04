@@ -7,11 +7,12 @@
 | Spec | Fase técnica | Estado | Resumen |
 | --- | --- | --- | --- |
 | 01 `fundaciones-backend` | Fase 0 | Aprobada; implementada (falta confirmar el CI en GitHub) | Workspace, Firebase deny-all, membresías, bitácora base, cambio de rol, CI y deploy a `dev` |
-| 02 (por crear) | Fase 1 | Pendiente | Estructura y jugadores |
-| 03 (por crear) | Fase 2 | Pendiente | Dinero |
-| 04 (por crear) | Fase 3 | Pendiente | Cancha, control y endurecimiento |
+| 02 `estructura-organizacion` | Fase 1 (parte 1) | Borrador | Ficha de la organización, sedes, categorías, grupos, `getStructure` y script de alta de organización |
+| 03+ (por crear) | Fase 1 (resto) | Pendiente | Usuarios y alcance (7.2), jugadores y acudientes (7.3, 7.4), documentos (7.5), importación (7.18) |
+| (por crear) | Fase 2 | Pendiente | Dinero |
+| (por crear) | Fase 3 | Pendiente | Cancha, control y endurecimiento |
 
-Las fases 1–3 pueden partirse en más de una spec (p. ej. Fase 1: estructura/usuarios, jugadores/acudientes, documentos, importación). Cada una se define con `/spec` al llegar su turno, una vez cumplida la puerta de salida de la anterior.
+Las fases 1–3 pueden partirse en más de una spec. Cada una se define con `/spec` al llegar su turno, una vez cumplida la puerta de salida de la anterior.
 
 ## Módulos de producto → fase
 
