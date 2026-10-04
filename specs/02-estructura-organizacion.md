@@ -1,6 +1,6 @@
 # SPEC 02 — Estructura de la organización (Fase 1 técnica, parte 1)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01 (`specs/01-fundaciones-backend.md`). Contexto en `docs/plan-tecnico.md` (Fase 1) y `docs/producto.md` (§7.1, §7.19, §6).
 > **Date:** 2026-10-03
 > **Objective:** Que el dueño gestione la ficha de su organización, sedes, categorías y grupos por callables auditadas, que cada rol lea solo la estructura de su alcance, y que el equipo cree una organización con su dueño mediante un script.
@@ -151,24 +151,24 @@ TDD en cada paso (test que falla primero). Un commit convencional por paso.
 ## Acceptance criteria
 
 - [ ] `npm run build`, `npm run lint` y `npm run typecheck` pasan sin errores ni advertencias.
-- [ ] `packages/domain` sigue sin importar Firebase.
-- [ ] `npm run test:domain` cubre cada regla de los 7 casos de uso con un caso positivo y uno negativo.
-- [ ] `coordinator`, `accountant`, `teacher`, `guardian` y `adultPlayer` reciben `permission-denied` en las 7 callables de escritura.
-- [ ] Un `owner` de `tenant-b` que llama cualquier callable de esta spec con `tenantId: 'tenant-a'` recibe `permission-denied`.
-- [ ] Cada escritura exitosa crea exactamente una entrada en `tenants/{tenantId}/auditLog` con `action`, `target`, `before`, `after` y `actorUid`.
-- [ ] Si falla la escritura de la bitácora, la sede no cambia (test de atomicidad).
-- [ ] Cerrar una sede o categoría con grupos activos responde `failed-precondition` y no cambia nada.
-- [ ] Crear o reabrir un grupo en una sede o categoría cerrada responde `failed-precondition`.
-- [ ] Un nombre repetido entre activos (sede en tenant, categoría en tenant, grupo en sede) responde `failed-precondition`.
-- [ ] Un horario con `end <= start`, `weekday` fuera de 1–7 o una hora que no es `HH:mm` responde `invalid-argument`.
-- [ ] `saveGroup` sobre un grupo existente rechaza un `venueId` distinto (no mueve el grupo).
-- [ ] Ningún documento de sede, categoría o grupo se borra: cerrar cambia `status` y `getStructure({includeClosed: true})` lo devuelve.
-- [ ] `getStructure` devuelve todo a `owner` y `accountant`; al coordinador seed solo su sede y sus grupos; al profesor seed solo sus grupos; `permission-denied` a `guardian` y `adultPlayer`.
-- [ ] `npm run test:rules` demuestra que leer y escribir `venues`, `categories` y `groups` directamente falla sin sesión, para el propio tenant y para otro tenant.
-- [ ] `npm run tenant:create` contra el emulador crea tenant, usuario y membresía `owner` activa, e imprime un enlace de restablecimiento; correrlo de nuevo con el mismo `--tenant-id` falla sin cambiar nada.
-- [ ] El seed corrido dos veces deja los mismos documentos.
+- [x] `packages/domain` sigue sin importar Firebase.
+- [x] `npm run test:domain` cubre cada regla de los 7 casos de uso con un caso positivo y uno negativo.
+- [x] `coordinator`, `accountant`, `teacher`, `guardian` y `adultPlayer` reciben `permission-denied` en las 7 callables de escritura.
+- [x] Un `owner` de `tenant-b` que llama cualquier callable de esta spec con `tenantId: 'tenant-a'` recibe `permission-denied`.
+- [x] Cada escritura exitosa crea exactamente una entrada en `tenants/{tenantId}/auditLog` con `action`, `target`, `before`, `after` y `actorUid`.
+- [x] Si falla la escritura de la bitácora, la sede no cambia (test de atomicidad).
+- [x] Cerrar una sede o categoría con grupos activos responde `failed-precondition` y no cambia nada.
+- [x] Crear o reabrir un grupo en una sede o categoría cerrada responde `failed-precondition`.
+- [x] Un nombre repetido entre activos (sede en tenant, categoría en tenant, grupo en sede) responde `failed-precondition`.
+- [x] Un horario con `end <= start`, `weekday` fuera de 1–7 o una hora que no es `HH:mm` responde `invalid-argument`.
+- [x] `saveGroup` sobre un grupo existente rechaza un `venueId` distinto (no mueve el grupo).
+- [x] Ningún documento de sede, categoría o grupo se borra: cerrar cambia `status` y `getStructure({includeClosed: true})` lo devuelve.
+- [x] `getStructure` devuelve todo a `owner` y `accountant`; al coordinador seed solo su sede y sus grupos; al profesor seed solo sus grupos; `permission-denied` a `guardian` y `adultPlayer`.
+- [x] `npm run test:rules` demuestra que leer y escribir `venues`, `categories` y `groups` directamente falla sin sesión, para el propio tenant y para otro tenant.
+- [x] `npm run tenant:create` contra el emulador crea tenant, usuario y membresía `owner` activa, e imprime un enlace de restablecimiento; correrlo de nuevo con el mismo `--tenant-id` falla sin cambiar nada.
+- [x] El seed corrido dos veces deja los mismos documentos.
 - [ ] `npm run smoke:dev` pasa contra `escuelas-deportivas-dev` con los casos nuevos.
-- [ ] Existen ADR 0007 y `docs/arquitectura.md` actualizado; `docs/` replicado en los otros dos lugares.
+- [x] Existen ADR 0007 y `docs/arquitectura.md` actualizado; `docs/` replicado en los otros dos lugares.
 
 ## Decisiones
 
