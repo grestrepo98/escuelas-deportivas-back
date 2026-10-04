@@ -33,7 +33,7 @@ ni `httpsCallable`), así que cambiar el contrato no rompe nada.
 | Actor | Siempre sale del token, nunca de la petición |
 | Contratos | zod de entrada y salida junto a cada handler (`routes/<nombre>/schema.ts`). El back sigue siendo la fuente de verdad y no se publica nada |
 | Entrada inválida | `400` con los nombres de los campos inválidos, nunca sus valores |
-| CORS | Opción `cors` de `onRequest`, con los orígenes por ambiente. Sin dependencia `cors` |
+| CORS | `cors: true` de `onRequest` mientras solo exista `dev`; lista de orígenes por ambiente antes de crear `prod`. Sin dependencia `cors` |
 | Hexagonal | Express solo en `<módulo>/infrastructure/http/`. `domain` y `application` no lo importan (regla nueva de ESLint, probada por `lint-boundaries.test.ts`) |
 | Casos de uso y adaptadores | Sin cambios |
 | Cambio incompatible | La ruta anterior sigue funcionando (o la nueva va bajo otra versión de ruta) hasta que el front publique la suya |
