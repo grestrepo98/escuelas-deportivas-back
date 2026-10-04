@@ -1,6 +1,6 @@
 # SPEC 03 — Reestructura modular de `functions` (deuda técnica tras la spec 02)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01 (`specs/01-fundaciones-backend.md`) y SPEC 02 (`specs/02-estructura-organizacion.md`, ya implementada sobre la estructura actual). Esta spec reubica ese código sin cambiar su comportamiento.
 > **Date:** 2026-10-04
 > **Objective:** Que todo el código del backend viva en `functions/src`, organizado por módulo con capas hexagonales (`domain`, `application`, `infrastructure`) y fronteras verificadas por lint, sin cambiar el comportamiento de las 10 callables desplegadas.
@@ -140,18 +140,18 @@ TDD en cada paso: primero el test que falla. Un commit convencional por paso (lo
 
 ## Acceptance criteria
 
-- [ ] En la raíz del repo no existen `package.json`, `package-lock.json`, `tsconfig.base.json`, `packages/` ni `scripts/`; todo archivo `.ts` versionado está bajo `functions/`.
-- [ ] Ningún archivo importa `@escuelas/domain`, y `deploy-dev.yml` no menciona `@escuelas/domain` ni `packages/`.
-- [ ] Desde `functions/`, `npm run build`, `npm run lint` y `npm run typecheck` pasan sin errores ni advertencias.
-- [ ] `npm run test:unit`, `npm run test:rules` y `npm run test:integration` pasan, con al menos la misma cantidad de tests que la línea base del paso 0.
-- [ ] `lint-boundaries.test.ts` demuestra que fallan los imports de `firebase-admin`, `firebase-functions`, `@google-cloud/*`, `zod` o de `infrastructure/` desde `*/domain/**`, y los de Firebase o `infrastructure/` desde `*/application/**`, y que pasa un import de `domain` desde `infrastructure`.
-- [ ] `functions/lib/index.js` exporta exactamente las 10 callables (`listMyMemberships`, `changeMembershipRole`, `updateTenantProfile`, `saveVenue`, `setVenueStatus`, `saveCategory`, `setCategoryStatus`, `saveGroup`, `setGroupStatus`, `getStructure`), y no contiene código de `scripts/` ni de tests.
-- [ ] Los esquemas zod de las 10 callables no cambian (diff limitado a imports y ubicación).
-- [ ] `npm run seed:emulator` corrido dos veces deja los mismos documentos, y `npm run smoke:emulator` pasa.
-- [ ] `npm run tenant:create` contra el emulador crea la organización con su dueño y falla sin cambios si el tenant ya existe (cubierto por su test).
+- [x] En la raíz del repo no existen `package.json`, `package-lock.json`, `tsconfig.base.json`, `packages/` ni `scripts/`; todo archivo `.ts` versionado está bajo `functions/`.
+- [x] Ningún archivo importa `@escuelas/domain`, y `deploy-dev.yml` no menciona `@escuelas/domain` ni `packages/`.
+- [x] Desde `functions/`, `npm run build`, `npm run lint` y `npm run typecheck` pasan sin errores ni advertencias.
+- [x] `npm run test:unit`, `npm run test:rules` y `npm run test:integration` pasan, con al menos la misma cantidad de tests que la línea base del paso 0.
+- [x] `lint-boundaries.test.ts` demuestra que fallan los imports de `firebase-admin`, `firebase-functions`, `@google-cloud/*`, `zod` o de `infrastructure/` desde `*/domain/**`, y los de Firebase o `infrastructure/` desde `*/application/**`, y que pasa un import de `domain` desde `infrastructure`.
+- [x] `functions/lib/index.js` exporta exactamente las 10 callables (`listMyMemberships`, `changeMembershipRole`, `updateTenantProfile`, `saveVenue`, `setVenueStatus`, `saveCategory`, `setCategoryStatus`, `saveGroup`, `setGroupStatus`, `getStructure`), y no contiene código de `scripts/` ni de tests.
+- [x] Los esquemas zod de las 10 callables no cambian (diff limitado a imports y ubicación).
+- [x] `npm run seed:emulator` corrido dos veces deja los mismos documentos, y `npm run smoke:emulator` pasa.
+- [x] `npm run tenant:create` contra el emulador crea la organización con su dueño y falla sin cambios si el tenant ya existe (cubierto por su test).
 - [ ] El CI (`ci.yml`) pasa en un PR real hacia `dev`.
 - [ ] Tras desplegar a `escuelas-deportivas-dev` y correr `npm run seed:dev`, `npm run smoke:dev` pasa con los chequeos de estructura.
-- [ ] Existe el ADR 0008, el ADR 0001 figura como reemplazado, D-01/D-02, `arquitectura.md`, la guía, el README, `CLAUDE.md` y el ROADMAP describen la estructura nueva, la spec 02 tiene su nota de reubicación, y `docs/` está replicado en los otros dos lugares.
+- [x] Existe el ADR 0008, el ADR 0001 figura como reemplazado, D-01/D-02, `arquitectura.md`, la guía, el README, `CLAUDE.md` y el ROADMAP describen la estructura nueva, la spec 02 tiene su nota de reubicación, y `docs/` está replicado en los otros dos lugares.
 
 ## Decisiones
 

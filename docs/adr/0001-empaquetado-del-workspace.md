@@ -1,6 +1,6 @@
 # ADR 0001 — Empaquetado de `packages/domain` en el despliegue de Functions
 
-- **Estado:** Aceptada (verificación en despliegue real pendiente, ver "Verificación")
+- **Estado:** Reemplazada por el [ADR 0008](0008-estructura-modular-en-functions.md) (spec 03). Se conserva como registro histórico: describe el empaquetado de `packages/domain`, que ya no existe
 - **Fecha:** 2026-10-03
 - **Spec:** `specs/01-fundaciones-backend.md`, paso 2
 

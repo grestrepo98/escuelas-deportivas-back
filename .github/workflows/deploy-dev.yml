@@ -25,6 +25,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: functions
     # Scopes the service account secret to this environment.
     environment: dev
     steps:
@@ -33,10 +36,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: functions/package-lock.json
       - run: npm ci
-      # The functions predeploy typechecks against the domain's built types
-      # (packages/domain/dist), which a fresh checkout does not have.
-      - run: npm run build -w @escuelas/domain
       # Provisional credential (ADR 0006): a long-lived service account key.
       # Sets GOOGLE_APPLICATION_CREDENTIALS for the Firebase CLI.
       - uses: google-github-actions/auth@v2
