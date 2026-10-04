@@ -82,3 +82,9 @@ lib/
 
 # Domain build output
 dist/
+
+# AI agent tooling (local to each developer, not part of the product)
+.agents/
+.atl/
+.claude/skills/
+skills-lock.json
