@@ -2,13 +2,16 @@
   "name": "functions",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
-    "build": "tsc",
-    "build:watch": "tsc --watch",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "npm run typecheck && node build.mjs",
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test:rules": "vitest run --config vitest.rules.config.ts"
   },
   "engines": {
     "node": "24"
@@ -16,16 +19,14 @@
   "main": "lib/index.js",
   "dependencies": {
     "firebase-admin": "^13.6.0",
-    "firebase-functions": "^7.0.0"
+    "firebase-functions": "^7.0.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint": "^8.57.0",
-    "eslint-config-google": "^0.14.0",
-    "eslint-plugin-import": "^2.25.4",
-    "firebase-functions-test": "^3.4.1",
-    "typescript": "^6.0.0"
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "esbuild": "^0.25.0",
+    "firebase": "^12.19.0",
+    "firebase-functions-test": "^3.4.1"
   },
   "private": true
 }

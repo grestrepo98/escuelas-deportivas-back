@@ -1,0 +1,34 @@
+{
+  "name": "escuelas-back",
+  "private": true,
+  "workspaces": [
+    "functions",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @escuelas/domain && npm run build -w functions",
+    "lint": "npm run lint --workspaces --if-present && eslint --ext .ts scripts",
+    "typecheck": "npm run build -w @escuelas/domain && npm run typecheck --workspaces --if-present && tsc -p scripts/tsconfig.json",
+    "test:domain": "npm run test -w @escuelas/domain",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-escuelas-rules \"npm run test:rules -w functions\"",
+    "test:integration": "npm run build && firebase emulators:exec --only auth,firestore,functions --project demo-escuelas-integration \"npm run test:integration -w functions\"",
+    "seed:emulator": "npm run build -w @escuelas/domain && tsx scripts/seed.ts --target emulator",
+    "seed:dev": "npm run build -w @escuelas/domain && tsx scripts/seed.ts --target dev",
+    "smoke:dev": "npm run build -w @escuelas/domain && tsx scripts/smoke-dev.ts --target dev",
+    "smoke:emulator": "npm run build && firebase emulators:exec --only auth,firestore,functions --project demo-escuelas-smoke \"npm run seed:emulator && tsx scripts/smoke-dev.ts --target emulator\""
+  },
+  "engines": {
+    "node": "24"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "firebase-tools": "^15.32.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.0",
+    "vitest": "^3.2.0"
+  }
+}
