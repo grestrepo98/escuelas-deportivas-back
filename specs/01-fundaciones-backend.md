@@ -1,6 +1,6 @@
 # SPEC 01 — Fundaciones del backend (Fase 0 técnica)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** ninguna (primera spec). Contexto en `docs/plan-tecnico.md` y `docs/producto.md`; trazabilidad de lo que queda fuera en `specs/ROADMAP.md`.
 > **Date:** 2026-10-03
 > **Objective:** Dejar el repo `escuelas-back` como workspace hexagonal con Firebase en modo "denegar todo", membresías por tenant, bitácora base, un cambio de rol auditado, CI y despliegue a `dev`, todo probado con TDD.
@@ -155,7 +155,7 @@ Cada paso deja el repo ejecutable y se hace con TDD (test que falla primero) sal
 - [x] Una entrada que no cumple el esquema zod (campo faltante, rol inexistente) responde `invalid-argument`.
 - [x] No hay un `number` de coma flotante ni un campo monetario en el modelo de esta spec (el dinero entero en COP llega con la Fase 2).
 - [x] El seed corrido dos veces seguidas contra el emulador deja los mismos documentos, sin duplicados.
-- [ ] Los workflows de CI ejecutan en un PR de prueba y quedan en verde; un push a la rama `dev` despliega a `dev`. *(pendiente: requiere subir el repo a GitHub; el flujo de `ci.yml` se simuló completo sobre una copia limpia y pasó)*
+- [ ] Los workflows de CI ejecutan en un PR de prueba y quedan en verde; un push a la rama `dev` despliega a `dev`. _(pendiente: requiere subir el repo a GitHub; el flujo de `ci.yml` se simuló completo sobre una copia limpia y pasó)_
 - [x] `scripts/smoke-dev.ts` contra `escuelas-deportivas-dev` confirma: `listMyMemberships` responde para un usuario del seed, un cambio de rol deja su entrada en la bitácora, y un usuario de `tenant-b` no ve `tenant-a`.
 - [x] Las Functions desplegadas aparecen en la región `us-central1`.
 - [x] Existen los README de ambos paquetes, `docs/arquitectura.md`, la guía de caso de uso y los ADRs; `CLAUDE.md` lista los comandos de test reales.
@@ -177,7 +177,7 @@ Verificado el 2026-10-03. Lo que cambió o se decidió al implementar (el detall
 
 Cobertura al cierre: 42 tests de dominio, 114 de reglas, 71 de integración; humo en `dev` 5/5.
 
-Pendiente fuera del código: crear la rama `dev`, el *environment* `dev` con el secreto `FIREBASE_SERVICE_ACCOUNT_DEV` y la protección de ramas en GitHub, y confirmar que el CI queda en verde en un PR real.
+Pendiente fuera del código: crear la rama `dev`, el _environment_ `dev` con el secreto `FIREBASE_SERVICE_ACCOUNT_DEV` y la protección de ramas en GitHub, y confirmar que el CI queda en verde en un PR real.
 
 ## Decisiones
 
