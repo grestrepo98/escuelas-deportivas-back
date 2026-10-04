@@ -5,6 +5,13 @@ repo y contiene todo el código del backend, organizado por módulo (ADR 0008):
 dominio, casos de uso, adaptadores de Firestore y callables. Región fija
 `us-central1` (ADR 0003).
 
+> **Estado:** este README describe el código tal como está (10 callables). El ADR
+> 0009 y la spec 04 lo reemplazan por una API HTTP con Express por módulo
+> (`membershipApi`, `tenantApi`, `structureApi`, con `infrastructure/http/` en vez de
+> `infrastructure/callables/`). Este documento se reescribe cuando se ejecute esa
+> spec; la correspondencia entre callables y rutas está en
+> `docs/arquitectura.md` y en la spec 04.
+
 ## Estructura
 
 ```
@@ -47,6 +54,10 @@ El contrato de cada una vive en su `schema.ts`. El back es la fuente de verdad;
 el front mantiene su propia copia en su adaptador de datos (D-01).
 
 ## Reglas que cumple toda callable
+
+> Con la spec 04 cada ruta de la API cumple las mismas reglas: el `uid` sale del
+> token (`Authorization: Bearer`, 401 si falta), el payload se valida con zod (400),
+> la membresía se lee en cada petición (403) y los errores salen como estados HTTP.
 
 1. `requireUid(request.auth)` primero: el `uid` sale de la sesión, nunca del payload.
 2. El payload se valida con zod; si falla, `invalid-argument`.

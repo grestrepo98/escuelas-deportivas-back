@@ -23,6 +23,10 @@ decisión de D-06.
 - Membresía inexistente e inactiva responden igual (`permission-denied`, mismo
   mensaje) para no revelar a quién pertenece cada tenant.
 
+> **Actualización (ADR 0009, 2026-10-04):** donde dice "callable" léase "petición a la
+> API HTTP del módulo". La regla no cambia: se lee la membresía en cada petición y
+> `permission-denied` pasa a ser `403`. El `tenantId` viaja en la ruta.
+
 ## Consecuencias
 
 - Desactivar una membresía corta el acceso en la siguiente llamada, sin revocar

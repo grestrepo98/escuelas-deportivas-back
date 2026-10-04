@@ -26,6 +26,10 @@ Fase 1.
   de un tenant y exigen un mecanismo aparte: se diseñan con el módulo 7.19 en la
   Fase 1.
 
+> **Actualización (ADR 0009, 2026-10-04):** las "callables" de este ADR pasan a ser
+> rutas de la API HTTP del módulo (`PATCH /tenants/:tenantId/memberships/:uid/role`
+> en `membershipApi`). La decisión de usar seed no cambia.
+
 ## Consecuencias
 
 - Los tenants y usuarios del seed son datos de prueba con prefijo fijo

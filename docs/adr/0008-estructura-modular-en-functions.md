@@ -5,6 +5,12 @@
 - **Spec:** `specs/03-reestructura-modular-functions.md`
 - **Reemplaza a:** ADR 0001 (empaquetado de `packages/domain`)
 
+> **Actualización (ADR 0009, 2026-10-04):** en `infrastructure`, `callables/` pasa a
+> ser `http/` (un router Express por módulo) y `index.ts` exporta tres APIs
+> (`membershipApi`, `tenantApi`, `structureApi`) en lugar de 10 callables. Lo demás de
+> este ADR (módulos, capas, fronteras, esbuild) no cambia. Hasta que se ejecute la
+> spec 04, el código sigue como describe este ADR.
+
 ## Resumen
 
 Todo el código del backend vive en `functions/src`, organizado **por módulo de

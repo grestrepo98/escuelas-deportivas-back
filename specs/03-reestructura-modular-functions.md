@@ -1,5 +1,7 @@
 # SPEC 03 — Reestructura modular de `functions` (deuda técnica tras la spec 02)
 
+> **Corrección (2026-10-04):** esta spec movió las 10 callables a `<módulo>/infrastructure/callables/` y es correcta para lo que se hizo. El ADR 0009 y la spec 04 reemplazan esas callables por una API HTTP con Express por módulo (`<módulo>/infrastructure/http/`; `index.ts` exporta `membershipApi`, `tenantApi` y `structureApi`). La estructura por módulo, las capas y las fronteras de esta spec no cambian. Como la spec 04 es ahora la migración del borde, "módulos de negocio nuevos" pasan a ser la spec 05 en adelante donde esta spec dice "spec 04 en adelante".
+
 > **Status:** Implemented
 > **Depends on:** SPEC 01 (`specs/01-fundaciones-backend.md`) y SPEC 02 (`specs/02-estructura-organizacion.md`, ya implementada sobre la estructura actual). Esta spec reubica ese código sin cambiar su comportamiento.
 > **Date:** 2026-10-04
