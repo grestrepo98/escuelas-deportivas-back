@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Deny-all (D-03, D-07, D-08): files are served through signed URLs
+// issued by functions, never through direct client access.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
