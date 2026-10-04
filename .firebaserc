@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "escuelas-deportivas-dev",
+    "dev": "escuelas-deportivas-dev"
+  }
+}
