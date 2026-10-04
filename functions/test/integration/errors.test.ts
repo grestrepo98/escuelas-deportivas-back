@@ -8,6 +8,7 @@ describe("toHttpsError", () => {
     ["permission_denied", "permission-denied"],
     ["not_found", "not-found"],
     ["failed_precondition", "failed-precondition"],
+    ["invalid_argument", "invalid-argument"],
   ] as const)("maps domain %s to %s", (domainCode, httpsCode) => {
     const mapped = toHttpsError(new DomainError(domainCode, "msg"));
     expect(mapped).toBeInstanceOf(HttpsError);
