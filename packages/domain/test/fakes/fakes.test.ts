@@ -1,6 +1,8 @@
 import {describe, expect, it} from "vitest";
 import type {Membership} from "../../src/membership/membership.js";
 import type {AuditEntry} from "../../src/audit/audit-entry.js";
+import type {Tenant} from "../../src/tenant/tenant.js";
+import type {Venue} from "../../src/structure/structure.js";
 import {
   FakeClock,
   InMemoryAuditLogWriter,
@@ -131,5 +133,93 @@ describe("InMemoryUnitOfWork", () => {
     expect((await memberships.get("u1", "tenant-a"))!.role)
       .toBe("coordinator");
     expect(auditLog.entries).toHaveLength(0);
+  });
+});
+
+const venue = (overrides: Partial<Venue> = {}): Venue => ({
+  id: "venue-1",
+  tenantId: "tenant-a",
+  name: "Sede Norte",
+  address: "Calle 1",
+  status: "active",
+  createdAt: new Date("2026-10-01T00:00:00Z"),
+  updatedAt: new Date("2026-10-01T00:00:00Z"),
+  ...overrides,
+});
+
+const tenant = (overrides: Partial<Tenant> = {}): Tenant => ({
+  id: "tenant-a",
+  name: "Argentinos Juniors",
+  status: "active",
+  contact: {},
+  createdAt: new Date("2026-10-01T00:00:00Z"),
+  updatedAt: new Date("2026-10-01T00:00:00Z"),
+  ...overrides,
+});
+
+describe("InMemoryTenantRepository", () => {
+  it("returns null when missing and reads back what was saved", async () => {
+    const {uow} = setup();
+    expect(await uow.tenants.get("tenant-a")).toBeNull();
+    await uow.tenants.save(tenant());
+    expect(await uow.tenants.get("tenant-a")).toEqual(tenant());
+  });
+});
+
+describe("InMemoryStructureRepository (venues)", () => {
+  it("generates distinct ids", () => {
+    const {uow} = setup();
+    expect(uow.venues.newId()).not.toBe(uow.venues.newId());
+  });
+
+  it("gets by tenant and id, isolating tenants", async () => {
+    const {uow} = setup();
+    await uow.venues.save(venue());
+    expect(await uow.venues.get("tenant-a", "venue-1")).toEqual(venue());
+    expect(await uow.venues.get("tenant-b", "venue-1")).toBeNull();
+  });
+
+  it("lists only the venues of the requested tenant", async () => {
+    const {uow} = setup();
+    await uow.venues.save(venue());
+    await uow.venues.save(venue({id: "venue-2"}));
+    await uow.venues.save(venue({id: "venue-3", tenantId: "tenant-b"}));
+    const listed = await uow.venues.listByTenant("tenant-a");
+    expect(listed.map((v) => v.id).sort()).toEqual(["venue-1", "venue-2"]);
+  });
+
+  it("does not leak mutations through returned objects", async () => {
+    const {uow} = setup();
+    await uow.venues.save(venue());
+    const read = await uow.venues.get("tenant-a", "venue-1");
+    read!.name = "Otro";
+    expect((await uow.venues.get("tenant-a", "venue-1"))!.name)
+      .toBe("Sede Norte");
+  });
+});
+
+describe("InMemoryUnitOfWork with structure repositories", () => {
+  it("rolls back venue and tenant when the audit write fails", async () => {
+    const {uow, auditLog} = setup();
+    await uow.venues.save(venue());
+    await uow.tenants.save(tenant());
+    auditLog.failWith = new Error("audit down");
+    await expect(uow.run(async (tx) => {
+      await tx.venues.save(venue({name: "Cambiada"}));
+      await tx.tenants.save(tenant({name: "Cambiada"}));
+      await tx.auditLog.append(entry());
+    })).rejects.toThrow("audit down");
+    expect((await uow.venues.get("tenant-a", "venue-1"))!.name)
+      .toBe("Sede Norte");
+    expect((await uow.tenants.get("tenant-a"))!.name)
+      .toBe("Argentinos Juniors");
+  });
+
+  it("exposes categories and groups in the transaction", async () => {
+    const {uow} = setup();
+    await uow.run(async (tx) => {
+      expect(await tx.categories.listByTenant("tenant-a")).toEqual([]);
+      expect(await tx.groups.listByTenant("tenant-a")).toEqual([]);
+    });
   });
 });

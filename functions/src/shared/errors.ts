@@ -5,6 +5,7 @@ const CODES: Record<DomainErrorCode, FunctionsErrorCode> = {
   permission_denied: "permission-denied",
   not_found: "not-found",
   failed_precondition: "failed-precondition",
+  invalid_argument: "invalid-argument",
 };
 
 // Business-rule violations keep their message; anything unexpected is hidden

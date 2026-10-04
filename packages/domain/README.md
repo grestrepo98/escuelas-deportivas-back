@@ -15,10 +15,12 @@ solo lo consume `functions/`.
 
 | Carpeta | Contenido |
 | --- | --- |
-| `src/membership/` | `Role`, `ROLES`, `Membership`, `Scope`, `membershipId`, `isActiveMembershipOf` y el caso de uso `ChangeMembershipRole` |
+| `src/membership/` | `Role`, `ROLES`, `Membership`, `Scope`, `membershipId`, `isActiveMembershipOf`, `requireOwner` y el caso de uso `ChangeMembershipRole` |
 | `src/audit/` | `AuditEntry`: lo que el dominio quiere dejar en la bitácora (sin `at`; lo asigna el escritor) |
-| `src/ports/` | `Clock`, `MembershipRepository`, `AuditLogWriter`, `UnitOfWork` |
-| `src/errors.ts` | `DomainError` con los códigos `permission_denied`, `not_found`, `failed_precondition` |
+| `src/structure/` | `Venue`, `Category`, `Group`, `ScheduleSlot`, validadores puros (nombre, años, horario), `isNameTaken`, los casos de uso `SaveVenue`/`SetVenueStatus`, `SaveCategory`/`SetCategoryStatus`, `SaveGroup`/`SetGroupStatus` y la función pura `visibleStructure` |
+| `src/tenant/` | `Tenant` y el caso de uso `UpdateTenantProfile` |
+| `src/ports/` | `Clock`, `MembershipRepository`, `TenantRepository`, `StructureRepository<T>` (con los alias `VenueRepository`, `CategoryRepository`, `GroupRepository`), `AuditLogWriter`, `UnitOfWork` |
+| `src/errors.ts` | `DomainError` con los códigos `permission_denied`, `not_found`, `failed_precondition`, `invalid_argument` |
 | `test/fakes/` | Dobles en memoria de los puertos, incluida una `UnitOfWork` con rollback |
 
 Todo lo público sale de `src/index.ts`.

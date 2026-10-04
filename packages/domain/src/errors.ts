@@ -2,7 +2,8 @@
 export type DomainErrorCode =
   | "permission_denied"
   | "not_found"
-  | "failed_precondition";
+  | "failed_precondition"
+  | "invalid_argument";
 
 export class DomainError extends Error {
   constructor(readonly code: DomainErrorCode, message: string) {

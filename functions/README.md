@@ -13,7 +13,7 @@ src/
 │   ├── schema.ts                 # zod de entrada y salida (el contrato)
 │   └── index.ts                  # onCall: sesión → validar → autorizar → caso de uso
 ├── adapters/firestore/           # implementan los puertos del dominio
-└── shared/                       # authorize, errors, clock, admin
+└── shared/                       # authorize, callable (parseInput), errors, clock, admin
 test/
 ├── rules/                        # reglas de Firestore/Storage (emulador)
 └── integration/                  # adaptadores y callables (emulador)
@@ -25,6 +25,14 @@ test/
 | --- | --- | --- |
 | `listMyMemberships` | cualquier usuario con sesión | Lista las membresías activas propias con el nombre del tenant |
 | `changeMembershipRole` | `owner` activo del tenant | Cambia el rol de otra membresía y registra la bitácora en la misma transacción |
+| `updateTenantProfile` | `owner` activo del tenant | Edita la ficha de la organización (nombre, registro IDRD, contacto) |
+| `saveVenue` / `setVenueStatus` | `owner` activo del tenant | Crea o edita una sede / la cierra o reabre. Cerrar con grupos activos se rechaza |
+| `saveCategory` / `setCategoryStatus` | `owner` activo del tenant | Igual, para categorías |
+| `saveGroup` / `setGroupStatus` | `owner` activo del tenant | Igual, para grupos. Sede y categoría deben estar activas; la sede no cambia |
+| `getStructure` | `owner`, `accountant`, `coordinator`, `teacher` | Árbol de sedes, categorías y grupos filtrado por rol y alcance. `includeClosed` incluye lo cerrado |
+
+Cada escritura deja exactamente una entrada de bitácora en la misma transacción.
+Detalle de las reglas en `docs/adr/0007-estructura-de-la-organizacion.md`.
 
 El contrato de cada una vive en su `schema.ts`. El back es la fuente de verdad;
 el front mantiene su propia copia en su adaptador de datos (D-01).
@@ -51,6 +59,7 @@ npm run test:rules         # emuladores Firestore + Storage
 npm run test:integration   # compila y levanta Auth + Firestore + Functions
 npm run seed:emulator      # datos de prueba (dentro de emulators:exec o start)
 SEED_PASSWORD=... npm run seed:dev
+npm run tenant:create -- --target dev --tenant-id <id> --name <nombre> --owner-email <correo>
 SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev   # callables desplegadas
 npm run smoke:emulator     # verifica el propio smoke test en local
 ```
@@ -83,3 +92,30 @@ cubre. Por eso el humo en `dev` (`npm run smoke:dev`) es parte de la verificaci�
 (`--target emulator|dev`), `prod` no existe como opción y `dev` exige
 `SEED_PASSWORD`. Para `dev` hacen falta credenciales de aplicación
 (`gcloud auth application-default login` o `GOOGLE_APPLICATION_CREDENTIALS`).
+
+Desde la spec 02 el seed también siembra estructura con ids fijos: en `tenant-a`
+2 sedes (Norte y Sur), 2 categorías (Sub-10 y Sub-12) y 3 grupos; en `tenant-b`
+1 sede. El `scope` del coordinador seed apunta a la sede Norte y el del profesor
+seed al grupo "Sub-10 Norte". Sigue siendo idempotente y restaura lo que se
+desvió (por ejemplo, una sede seed cerrada).
+
+## Alta de una organización
+
+`scripts/create-tenant.ts` crea el tenant, el usuario dueño en Auth (o reutiliza
+el existente) y su membresía `owner`, e imprime un **enlace de restablecimiento
+de contraseña**: quien lo abre fija la clave del dueño, así que se envía por un
+canal privado.
+
+```bash
+# contra el emulador (dentro de emulators:exec o start)
+npm run tenant:create -- --target emulator --tenant-id escuela-x \
+  --name "Escuela X" --owner-email dueno@escuela-x.co
+
+# contra dev (credenciales de aplicación, como el seed)
+npm run tenant:create -- --target dev --tenant-id escuela-x \
+  --name "Escuela X" --owner-email dueno@escuela-x.co
+```
+
+Si el tenant ya existe falla sin cambiar nada. `--target` es obligatorio, `prod`
+no existe y `dev` se rechaza si hay variables de emulador. El `--tenant-id` admite
+minúsculas, dígitos y guiones (3–40). Detalle en `docs/adr/0007-estructura-de-la-organizacion.md`.

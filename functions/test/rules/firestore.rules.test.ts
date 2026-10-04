@@ -20,12 +20,24 @@ const DOCS = [
   "tenants/tenant-a",
   "tenants/tenant-b",
   "tenants/tenant-a/auditLog/entry-1",
+  "tenants/tenant-a/venues/venue-1",
+  "tenants/tenant-a/categories/category-1",
+  "tenants/tenant-a/groups/group-1",
+  "tenants/tenant-b/venues/venue-2",
+  "tenants/tenant-b/categories/category-2",
+  "tenants/tenant-b/groups/group-2",
   "memberships/user-a_tenant-a",
   "memberships/user-b_tenant-b",
 ];
 const COLLECTIONS = [
   "tenants",
   "tenants/tenant-a/auditLog",
+  "tenants/tenant-a/venues",
+  "tenants/tenant-a/categories",
+  "tenants/tenant-a/groups",
+  "tenants/tenant-b/venues",
+  "tenants/tenant-b/categories",
+  "tenants/tenant-b/groups",
   "memberships",
 ];
 

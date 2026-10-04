@@ -14,6 +14,7 @@
     "test:integration": "npm run build && firebase emulators:exec --only auth,firestore,functions --project demo-escuelas-integration \"npm run test:integration -w functions\"",
     "seed:emulator": "npm run build -w @escuelas/domain && tsx scripts/seed.ts --target emulator",
     "seed:dev": "npm run build -w @escuelas/domain && tsx scripts/seed.ts --target dev",
+    "tenant:create": "npm run build -w @escuelas/domain && tsx scripts/create-tenant.ts",
     "smoke:dev": "npm run build -w @escuelas/domain && tsx scripts/smoke-dev.ts --target dev",
     "smoke:emulator": "npm run build && firebase emulators:exec --only auth,firestore,functions --project demo-escuelas-smoke \"npm run seed:emulator && tsx scripts/smoke-dev.ts --target emulator\""
   },

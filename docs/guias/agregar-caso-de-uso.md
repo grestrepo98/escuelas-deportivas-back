@@ -30,8 +30,10 @@ Cada paso termina en verde antes de pasar al siguiente.
    - Hace todo dentro de `unitOfWork.run(...)`: **primero todas las lecturas,
      después las escrituras**.
    - Sin efectos fuera del contexto de la transacción (puede reintentarse).
+   - Si solo el `owner` puede hacerlo, usa `requireOwner`
+     (`membership/require-owner.ts`) como primera lectura.
    - Falla con `DomainError` (`permission_denied`, `not_found`,
-     `failed_precondition`).
+     `failed_precondition`, `invalid_argument`).
    - Si cambia datos que importan, agrega una `AuditEntry` en la misma
      transacción (y amplía `AuditAction`).
 4. Exporta desde `src/index.ts`.
@@ -45,6 +47,10 @@ El dominio no importa Firebase; `npm run lint` lo verifica.
 2. Implementa en `functions/src/adapters/firestore/`. Acepta una `Transaction`
    opcional y úsala cuando exista. Convierte `Date` ↔ `Timestamp` en un mapper.
 3. Corre `npm run test:integration`.
+
+Si la colección nueva es una subcolección de `tenants/{tenantId}` con la forma
+de sedes, categorías y grupos, **no escribas otro adaptador**: reutiliza
+`FirestoreStructureRepository<T>` con un mapper (`structure-mapper.ts`).
 
 Las colecciones nuevas viven bajo `tenants/{tenantId}/...` (D-05). Si la consulta
 usa varios filtros de desigualdad u orden, agrega el índice a
@@ -63,7 +69,7 @@ usa varios filtros de desigualdad u orden, agrega el índice a
    - una membresía recién desactivada → `PERMISSION_DENIED` con el mismo token;
    - el camino feliz y, si escribe, su bitácora.
 3. Implementa `index.ts` con este orden fijo:
-   `requireUid` → `safeParse` (→ `invalid-argument`) → `authorizeTenantMember` →
+   `requireUid` → `parseInput` (zod; → `invalid-argument`) → `authorizeTenantMember` →
    caso de uso dentro de `try/catch` con `toHttpsError` → `outputSchema.parse`.
 4. Exporta la callable en `functions/src/index.ts`.
 
