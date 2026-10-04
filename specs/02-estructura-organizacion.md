@@ -1,6 +1,6 @@
 # SPEC 02 — Estructura de la organización (Fase 1 técnica, parte 1)
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** SPEC 01 (`specs/01-fundaciones-backend.md`). Contexto en `docs/plan-tecnico.md` (Fase 1) y `docs/producto.md` (§7.1, §7.19, §6).
 > **Date:** 2026-10-03
 > **Objective:** Que el dueño gestione la ficha de su organización, sedes, categorías y grupos por callables auditadas, que cada rol lea solo la estructura de su alcance, y que el equipo cree una organización con su dueño mediante un script.
@@ -116,12 +116,12 @@ output: { venues: VenueDto[]; categories: CategoryDto[]; groups: GroupDto[] }
 
 Visibilidad de `getStructure` (§6, matriz "Sedes, categorías, grupos"):
 
-| Rol                       | Ve                                                         |
-| ------------------------- | ---------------------------------------------------------- |
-| `owner`, `accountant`     | Todo                                                       |
+| Rol                       | Ve                                                           |
+| ------------------------- | ------------------------------------------------------------ |
+| `owner`, `accountant`     | Todo                                                         |
 | `coordinator`             | Sedes de `scope.venueIds`, sus grupos y todas las categorías |
-| `teacher`                 | Grupos de `scope.groupIds`, sus sedes y sus categorías     |
-| `guardian`, `adultPlayer` | Nada: `permission-denied`                                  |
+| `teacher`                 | Grupos de `scope.groupIds`, sus sedes y sus categorías       |
+| `guardian`, `adultPlayer` | Nada: `permission-denied`                                    |
 
 Un `coordinator` o `teacher` con `scope` vacío ve listas vacías (vacío solo significa "sin restricción" para `owner`/`accountant`, spec 01).
 
@@ -192,12 +192,12 @@ TDD en cada paso (test que falla primero). Un commit convencional por paso.
 
 ## Risks
 
-| Riesgo                                                            | Mitigación                                                                                          |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Riesgo                                                            | Mitigación                                                                                                   |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `scope` de coordinador/profesor apunta a una sede o grupo cerrado | `getStructure` con `includeClosed: false` no lo devuelve; la spec de usuarios valida el alcance al asignarlo |
-| Unicidad de nombre con dos creaciones simultáneas                 | La comprobación y la escritura van en la misma transacción                                          |
-| Hora de pared confundida con UTC                                  | Tipo `"HH:mm"` sin fecha ni zona; ADR 0007 lo explica                                               |
-| Script de alta corrido contra `dev` con datos reales              | `--target` obligatorio, `prod` inexistente, falla si el tenant existe                               |
+| Unicidad de nombre con dos creaciones simultáneas                 | La comprobación y la escritura van en la misma transacción                                                   |
+| Hora de pared confundida con UTC                                  | Tipo `"HH:mm"` sin fecha ni zona; ADR 0007 lo explica                                                        |
+| Script de alta corrido contra `dev` con datos reales              | `--target` obligatorio, `prod` inexistente, falla si el tenant existe                                        |
 
 ## What is **not** in this spec
 
