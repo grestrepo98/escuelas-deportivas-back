@@ -150,7 +150,7 @@ TDD en cada paso (test que falla primero). Un commit convencional por paso.
 
 ## Acceptance criteria
 
-- [ ] `npm run build`, `npm run lint` y `npm run typecheck` pasan sin errores ni advertencias.
+- [x] `npm run build`, `npm run lint` y `npm run typecheck` pasan sin errores ni advertencias.
 - [x] `packages/domain` sigue sin importar Firebase.
 - [x] `npm run test:domain` cubre cada regla de los 7 casos de uso con un caso positivo y uno negativo.
 - [x] `coordinator`, `accountant`, `teacher`, `guardian` y `adultPlayer` reciben `permission-denied` en las 7 callables de escritura.
