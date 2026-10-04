@@ -64,6 +64,21 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
+
+# Service account and credential keys
+*-service-account*.json
+service-account*.json
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+credentials*.json
+
+# Compiled output
+lib/
 
 # dataconnect generated files
 .dataconnect
+
+# Domain build output
+dist/

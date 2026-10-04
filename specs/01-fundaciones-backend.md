@@ -35,7 +35,7 @@ Estado real verificado el 2026-10-03:
 - Script de seed con Admin SDK: tenant de prueba, usuarios y membresías de los 6 roles, y un segundo tenant para probar aislamiento (emulador y `dev`).
 - Región fija `us-central1` para Functions (par de `nam5`).
 - Conversión `.firebaserc` con alias `dev`; el alias `prod` se agrega cuando exista ese proyecto.
-- CI en GitHub Actions: lint, typecheck, tests de dominio, tests de rules y de functions con emulador en cada PR; deploy a `dev` al hacer merge a `main`.
+- CI en GitHub Actions: lint, typecheck, tests de dominio, tests de rules y de functions con emulador en cada PR; deploy a `dev` al subir cambios a la rama `dev` (el ambiente `dev` refleja la rama `dev`).
 - Documentación junto al código: README por paquete, `docs/arquitectura.md`, guía "cómo agregar un caso de uso o adaptador", ADRs de las decisiones de esta spec.
 
 **Out of scope (para otras specs; ver `specs/ROADMAP.md`):**
@@ -136,29 +136,48 @@ Cada paso deja el repo ejecutable y se hace con TDD (test que falla primero) sal
 11. **Callable `changeMembershipRole`.** Esquema zod, `invalid-argument` ante entrada inválida, orquesta el caso de uso. Test de contrato y de aislamiento: un usuario del tenant B que apunta al tenant A recibe `permission-denied`.
 12. **Seed.** `scripts/seed.ts` crea (idempotente) tenants `tenant-a` y `tenant-b`, un usuario por rol en `tenant-a` y un `owner` en `tenant-b`; corre contra emulador y contra `dev` con bandera explícita. Verificación: tras correr dos veces no hay duplicados.
 13. **Documentación.** README de `packages/domain` y `functions`, `docs/arquitectura.md` (capas, puertos y adaptadores, flujo de punta a punta de `changeMembershipRole`), `docs/guias/agregar-caso-de-uso.md`, ADRs 0001–000N de las decisiones de esta spec; actualizar `CLAUDE.md` con los comandos de test reales y el estado; replicar los cambios en `docs/` de `../escuelas-front/docs/` y `../docs/` en la misma sesión (regla de D-01).
-14. **CI.** `.github/workflows/ci.yml` (PR: lint, typecheck, tests de dominio, rules y functions con `firebase emulators:exec`) y `.github/workflows/deploy-dev.yml` (merge a `main`: `firebase deploy --only functions,firestore,storage --project dev`) con service account guardada en un secreto de GitHub. Documentar en ADR que la autenticación por service account es provisional.
+14. **CI.** `.github/workflows/ci.yml` (PR: lint, typecheck, tests de dominio, rules y functions con `firebase emulators:exec`) y `.github/workflows/deploy-dev.yml` (push a la rama `dev`: `firebase deploy --only functions,firestore,storage --project dev`) con service account guardada en un secreto de GitHub. Documentar en ADR que la autenticación por service account es provisional.
 15. **Despliegue y humo en `dev`.** Desplegar, correr el seed contra `dev` y ejecutar el script de verificación `scripts/smoke-dev.ts` descrito en los criterios de aceptación. Es el último paso: no existe un paso "probar todo".
 
 ## Acceptance criteria
 
-- [ ] `npm run build`, `npm run lint` y `npm run typecheck` pasan en la raíz sin errores ni advertencias.
-- [ ] `packages/domain` no importa `firebase-admin`, `firebase-functions` ni ningún módulo `@google-cloud/*` (verificado por una regla de ESLint o un test).
-- [ ] `npm run test:domain` pasa sin emulador y cubre cada regla de `ChangeMembershipRole` con un caso positivo y uno negativo.
-- [ ] `npm run test:rules` demuestra que lectura y escritura directas a `tenants/**`, `memberships/**`, `tenants/*/auditLog/**` y a cualquier ruta de Storage fallan para: sin sesión, miembro del propio tenant y miembro de otro tenant.
-- [ ] Un usuario con membresía solo en `tenant-b` que llama `changeMembershipRole` con `tenantId: 'tenant-a'` recibe `permission-denied`, y `listMyMemberships` no le devuelve `tenant-a` (test automatizado).
-- [ ] Un usuario sin sesión que invoca cualquier callable recibe `unauthenticated`.
-- [ ] Una membresía con `status: 'inactive'` recibe `permission-denied` en la llamada inmediatamente siguiente a ser desactivada, sin revocar tokens.
-- [ ] `changeMembershipRole` por un `owner` de `tenant-a` sobre un `coordinator` cambia el rol y crea exactamente una entrada en `tenants/tenant-a/auditLog` con `before.role`, `after.role`, `actorUid`, `at` y `reason`.
-- [ ] `changeMembershipRole` rechaza con `failed-precondition` quitarle el rol al último `owner` activo del tenant.
-- [ ] Si falla la escritura de la bitácora, el rol no cambia (test de atomicidad con el emulador).
-- [ ] Un `coordinator`, `accountant`, `teacher`, `guardian` o `adultPlayer` que llama `changeMembershipRole` recibe `permission-denied`.
-- [ ] Una entrada que no cumple el esquema zod (campo faltante, rol inexistente) responde `invalid-argument`.
-- [ ] No hay un `number` de coma flotante ni un campo monetario en el modelo de esta spec (el dinero entero en COP llega con la Fase 2).
-- [ ] El seed corrido dos veces seguidas contra el emulador deja los mismos documentos, sin duplicados.
-- [ ] Los workflows de CI ejecutan en un PR de prueba y quedan en verde; el merge a `main` despliega a `dev`.
-- [ ] `scripts/smoke-dev.ts` contra `escuelas-deportivas-dev` confirma: `listMyMemberships` responde para un usuario del seed, un cambio de rol deja su entrada en la bitácora, y un usuario de `tenant-b` no ve `tenant-a`.
-- [ ] Las Functions desplegadas aparecen en la región `us-central1`.
-- [ ] Existen los README de ambos paquetes, `docs/arquitectura.md`, la guía de caso de uso y los ADRs; `CLAUDE.md` lista los comandos de test reales.
+- [x] `npm run build`, `npm run lint` y `npm run typecheck` pasan en la raíz sin errores ni advertencias.
+- [x] `packages/domain` no importa `firebase-admin`, `firebase-functions` ni ningún módulo `@google-cloud/*` (verificado por una regla de ESLint o un test).
+- [x] `npm run test:domain` pasa sin emulador y cubre cada regla de `ChangeMembershipRole` con un caso positivo y uno negativo.
+- [x] `npm run test:rules` demuestra que lectura y escritura directas a `tenants/**`, `memberships/**`, `tenants/*/auditLog/**` y a cualquier ruta de Storage fallan para: sin sesión, miembro del propio tenant y miembro de otro tenant.
+- [x] Un usuario con membresía solo en `tenant-b` que llama `changeMembershipRole` con `tenantId: 'tenant-a'` recibe `permission-denied`, y `listMyMemberships` no le devuelve `tenant-a` (test automatizado).
+- [x] Un usuario sin sesión que invoca cualquier callable recibe `unauthenticated`.
+- [x] Una membresía con `status: 'inactive'` recibe `permission-denied` en la llamada inmediatamente siguiente a ser desactivada, sin revocar tokens.
+- [x] `changeMembershipRole` por un `owner` de `tenant-a` sobre un `coordinator` cambia el rol y crea exactamente una entrada en `tenants/tenant-a/auditLog` con `before.role`, `after.role`, `actorUid`, `at` y `reason`.
+- [x] `changeMembershipRole` rechaza con `failed-precondition` quitarle el rol al último `owner` activo del tenant.
+- [x] Si falla la escritura de la bitácora, el rol no cambia (test de atomicidad con el emulador).
+- [x] Un `coordinator`, `accountant`, `teacher`, `guardian` o `adultPlayer` que llama `changeMembershipRole` recibe `permission-denied`.
+- [x] Una entrada que no cumple el esquema zod (campo faltante, rol inexistente) responde `invalid-argument`.
+- [x] No hay un `number` de coma flotante ni un campo monetario en el modelo de esta spec (el dinero entero en COP llega con la Fase 2).
+- [x] El seed corrido dos veces seguidas contra el emulador deja los mismos documentos, sin duplicados.
+- [ ] Los workflows de CI ejecutan en un PR de prueba y quedan en verde; un push a la rama `dev` despliega a `dev`. *(pendiente: requiere subir el repo a GitHub; el flujo de `ci.yml` se simuló completo sobre una copia limpia y pasó)*
+- [x] `scripts/smoke-dev.ts` contra `escuelas-deportivas-dev` confirma: `listMyMemberships` responde para un usuario del seed, un cambio de rol deja su entrada en la bitácora, y un usuario de `tenant-b` no ve `tenant-a`.
+- [x] Las Functions desplegadas aparecen en la región `us-central1`.
+- [x] Existen los README de ambos paquetes, `docs/arquitectura.md`, la guía de caso de uso y los ADRs; `CLAUDE.md` lista los comandos de test reales.
+
+## Notas de implementación
+
+Verificado el 2026-10-03. Lo que cambió o se decidió al implementar (el detalle de cada decisión está en `docs/adr/`):
+
+- **Dominio con `Date`, no `Timestamp`:** el dominio no importa Firebase; el adaptador convierte (ADR 0004, `docs/arquitectura.md`).
+- **`AuditEntry` sin `at`:** lo asigna el escritor (hora del servidor en Firestore, reloj en el doble de prueba).
+- **Puerto ampliado:** `MembershipRepository.countActiveByRole`, necesario para la invariante del último `owner`.
+- **`listMyMemberships` es una consulta de lectura** en el adaptador (`my-memberships-query.ts`), no un caso de uso del dominio.
+- **`@escuelas/domain` no se declara en `functions/package.json`:** npm enlaza los workspaces, y declararlo con `"*"` rompería el build en la nube (ADR 0001).
+- **`firebase-tools` como devDependency** de la raíz, para que el CI tenga el CLI.
+- **Despliegue a `dev` desde la rama `dev`** (no desde `main`): decisión posterior a la spec; el ambiente `dev` refleja la rama `dev` (ADR 0006).
+- **Política de limpieza de imágenes** de Artifact Registry (7 días) en `us-central1`, necesaria para que el despliegue no interactivo termine con código 0 (ADR 0006).
+- **Bug solo de la nube, hallado por el humo en `dev`:** el runtime de Functions ya crea apps de Admin con otro nombre, así que decidir con `getApps().length` fallaba (`app/no-app`, 500). Corregido con test de regresión (`functions/test/integration/admin.test.ts`).
+- **Alcance extra:** `npm run smoke:emulator` para verificar el propio script de humo en local, y reglas de seguridad del seed (`--target` obligatorio, `prod` inexistente, `dev` exige `SEED_PASSWORD` y `FIREBASE_API_KEY`).
+
+Cobertura al cierre: 42 tests de dominio, 114 de reglas, 71 de integración; humo en `dev` 5/5.
+
+Pendiente fuera del código: crear la rama `dev`, el *environment* `dev` con el secreto `FIREBASE_SERVICE_ACCOUNT_DEV` y la protección de ramas en GitHub, y confirmar que el CI queda en verde en un PR real.
 
 ## Decisiones
 

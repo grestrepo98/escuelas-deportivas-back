@@ -4,6 +4,8 @@
     "noEmit": true
   },
   "include": [
-    ".eslintrc.js"
+    ".eslintrc.js",
+    "vitest.integration.config.ts",
+    "vitest.rules.config.ts"
   ]
 }

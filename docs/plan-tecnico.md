@@ -342,7 +342,7 @@ La paginación no reemplaza al índice: Firestore solo busca por prefijo exacto 
 
 Dos pipelines independientes, uno por repo:
 
-- **`escuelas-front`:** en pull request, lint, typecheck y tests; al hacer merge a `main`, despliega Hosting a `dev`; con tag de versión, despliega a `prod` con aprobación manual.- **`escuelas-back`:** en pull request, lint, typecheck, tests de dominio y tests de rules en emulador; al hacer merge a `main`, despliega functions y rules a `dev`; con tag de versión, despliega a `prod` con aprobación manual.
+- **`escuelas-front`:** en pull request, lint, typecheck y tests; al hacer merge a `main`, despliega Hosting a `dev`; con tag de versión, despliega a `prod` con aprobación manual.- **`escuelas-back`:** en pull request, lint, typecheck, tests de dominio y tests de rules en emulador; al subir cambios a la rama `dev`, despliega functions y rules al proyecto `dev` (el ambiente `dev` refleja la rama `dev`); con tag de versión, despliega a `prod` con aprobación manual.
 **Decisión:** se usarán GitHub Actions y se ejecutan cuando Gustavo sube cambios al repositorio. Quedan por definir los detalles: qué evento despliega a `prod` y cómo se autentica Actions contra Firebase (service account o federación de identidad).
 
 **Estado:** Acordado en lo general; detalles por decidir.

@@ -6,7 +6,7 @@
 
 | Spec | Fase técnica | Estado | Resumen |
 | --- | --- | --- | --- |
-| 01 `fundaciones-backend` | Fase 0 | Draft | Workspace, Firebase deny-all, membresías, bitácora base, cambio de rol, CI y deploy a `dev` |
+| 01 `fundaciones-backend` | Fase 0 | Aprobada; implementada (falta confirmar el CI en GitHub) | Workspace, Firebase deny-all, membresías, bitácora base, cambio de rol, CI y deploy a `dev` |
 | 02 (por crear) | Fase 1 | Pendiente | Estructura y jugadores |
 | 03 (por crear) | Fase 2 | Pendiente | Dinero |
 | 04 (por crear) | Fase 3 | Pendiente | Cancha, control y endurecimiento |
