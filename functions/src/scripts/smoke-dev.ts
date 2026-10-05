@@ -1,4 +1,5 @@
 import {initializeApp} from "firebase-admin/app";
+import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {
   parseSeedArgs,
@@ -9,7 +10,7 @@ import {
   type SeedUser,
 } from "./seed-lib.js";
 
-// End-to-end smoke test of the deployed module APIs (specs 01, 02 and 04).
+// End-to-end smoke test of the deployed module APIs (specs 01, 02, 04 and 05).
 // It signs in as seeded users and calls the real functions over HTTPS.
 //
 //   SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev
@@ -91,12 +92,13 @@ async function main(): Promise<void> {
     uid: string,
     newRole: string,
     reason?: string,
+    scope?: {venueIds?: string[]; groupIds?: string[]},
   ) =>
     call(
       "membershipApi",
       "PATCH",
       `/tenants/tenant-a/memberships/${uid}/role`,
-      {newRole, reason},
+      {newRole, reason, scope},
       token,
     );
 
@@ -188,6 +190,8 @@ async function main(): Promise<void> {
       "baseline role (run the seed to restore it)",
     );
 
+    // A teacher needs a group and a coordinator a venue (spec 05).
+    const group = SEED_GROUPS.find((g) => g.tenantId === "tenant-a")!;
     const reason = `smoke-${Date.now()}`;
     try {
       const {status, body} = await changeRole(
@@ -195,6 +199,7 @@ async function main(): Promise<void> {
         coordinatorA.uid,
         "teacher",
         reason,
+        {groupIds: [group.id]},
       );
       expectEqual([status, body.role], [200, "teacher"], "response");
 
@@ -208,10 +213,11 @@ async function main(): Promise<void> {
         [
           entry.before?.role,
           entry.after?.role,
+          entry.after?.scope?.groupIds,
           entry.actorUid,
           entry.at !== undefined,
         ],
-        ["coordinator", "teacher", ownerA.uid, true],
+        ["coordinator", "teacher", [group.id], ownerA.uid, true],
         "audit entry",
       );
     } finally {
@@ -221,6 +227,7 @@ async function main(): Promise<void> {
         coordinatorA.uid,
         "coordinator",
         `${reason}-restore`,
+        {venueIds: coordinatorA.scope.venueIds},
       );
     }
     expectEqual(
@@ -412,6 +419,297 @@ async function main(): Promise<void> {
       );
     },
   );
+
+  // Spec 05: users and scope. Everything it creates is removed at the end
+  // (the memberships and the account it made), so a rerun starts clean.
+  const membersPath = "/tenants/tenant-a/memberships";
+  const membershipCall = (
+    method: "GET" | "POST" | "PUT" | "PATCH",
+    path: string,
+    token: string,
+    data?: unknown,
+  ) => call("membershipApi", method, `${membersPath}${path}`, data, token);
+  const venuesA = SEED_VENUES.filter((v) => v.tenantId === "tenant-a").map(
+    (v) => v.id,
+  );
+  const otherVenue = venuesA.find((id) => id !== coordinatorVenueId)!;
+  const adminAuth = getAuth(app);
+  const invitedEmail = `smoke-${Date.now()}@example.com`;
+  const rejectedEmail = `smoke-rejected-${Date.now()}@example.com`;
+  type Member = {uid: string; email: string; role: string; status: string};
+  const membersOf = async (token: string): Promise<Member[]> => {
+    const {status, body} = await membershipCall("GET", "", token);
+    expectEqual(status, 200, "list status");
+    return body.memberships;
+  };
+  const accountExists = (email: string) =>
+    adminAuth.getUserByEmail(email).then(
+      () => true,
+      () => false,
+    );
+  const toClean: string[] = []; // uids whose tenant-a membership to remove
+  let invitedUid = "";
+
+  try {
+    await check(
+      "the owner invites a coordinator and gets a reset link",
+      async () => {
+        const {status, body} = await membershipCall("POST", "", tokenA, {
+          email: invitedEmail,
+          role: "coordinator",
+          scope: {venueIds: [coordinatorVenueId]},
+        });
+        expectEqual(
+          [status, body.role, typeof body.passwordResetLink],
+          [201, "coordinator", "string"],
+          "invite response",
+        );
+        invitedUid = body.uid;
+        toClean.push(invitedUid);
+
+        const entries = await db
+          .collection("tenants/tenant-a/auditLog")
+          .where("target.id", "==", `${invitedUid}_tenant-a`)
+          .get();
+        expectEqual(
+          entries.docs.map((d) => d.data().action),
+          ["membership.invited"],
+          "audit actions",
+        );
+      },
+    );
+
+    await check("inviting the same person again is a conflict", async () => {
+      const {status, body} = await membershipCall("POST", "", tokenA, {
+        email: invitedEmail,
+        role: "teacher",
+        scope: {groupIds: [teacherGroup.id]},
+      });
+      expectEqual(
+        [status, body.error?.code],
+        [409, "failed_precondition"],
+        "status",
+      );
+    });
+
+    await check(
+      "an invalid scope is rejected and creates no account",
+      async () => {
+        const {status, body} = await membershipCall("POST", "", tokenA, {
+          email: rejectedEmail,
+          role: "coordinator",
+        });
+        expectEqual(
+          [status, body.error?.code],
+          [400, "invalid_argument"],
+          "status",
+        );
+        expectEqual(await accountExists(rejectedEmail), false, "account");
+      },
+    );
+
+    await check(
+      "the owner lists the members, the invited one too",
+      async () => {
+        const invited = (await membersOf(tokenA)).find(
+          (m) => m.email === invitedEmail,
+        );
+        expectEqual(
+          [invited?.uid, invited?.role, invited?.status],
+          [invitedUid, "coordinator", "active"],
+          "invited member",
+        );
+      },
+    );
+
+    await check(
+      "a coordinator lists only the members of their venue",
+      async () => {
+        const token = await signIn(coordinatorA);
+        const visible = await membersOf(token);
+        expectEqual(
+          visible.some((m) => m.email === invitedEmail),
+          true,
+          "sees the coordinator invited to their venue",
+        );
+        expectEqual(
+          visible.some((m) => m.uid === ownerA.uid),
+          false,
+          "does not see the owner",
+        );
+        expectEqual(
+          visible.every((m) => ["coordinator", "teacher"].includes(m.role)),
+          true,
+          "only coordinators and teachers",
+        );
+      },
+    );
+
+    await check("a teacher cannot list the members", async () => {
+      const token = await signIn(teacherA);
+      const {status, body} = await membershipCall("GET", "", token);
+      expectEqual(
+        [status, body.error?.code],
+        [403, "permission_denied"],
+        "status",
+      );
+    });
+
+    await check(
+      "the owner moves the invited coordinator to a venue",
+      async () => {
+        const {status, body} = await membershipCall(
+          "PUT",
+          `/${invitedUid}/scope`,
+          tokenA,
+          {scope: {venueIds: [otherVenue]}},
+        );
+        expectEqual(
+          [status, body.scope?.venueIds],
+          [200, [otherVenue]],
+          "scope response",
+        );
+        const empty = await membershipCall(
+          "PUT",
+          `/${invitedUid}/scope`,
+          tokenA,
+          {scope: {}},
+        );
+        expectEqual(empty.status, 400, "a coordinator needs a venue");
+      },
+    );
+
+    await check(
+      "a deactivated user is cut off with the same token, until reactivated",
+      async () => {
+        const token = await signIn(coordinatorA);
+        expectEqual(
+          (await membershipCall("GET", "", token)).status,
+          200,
+          "before",
+        );
+        try {
+          const off = await membershipCall(
+            "PATCH",
+            `/${coordinatorA.uid}/status`,
+            tokenA,
+            {status: "inactive", reason: "smoke"},
+          );
+          expectEqual([off.status, off.body.status], [200, "inactive"], "off");
+
+          for (const [api, path] of [
+            ["membershipApi", membersPath],
+            ["structureApi", "/tenants/tenant-a/structure"],
+          ]) {
+            const {status, body} = await call(
+              api,
+              "GET",
+              path,
+              undefined,
+              token,
+            );
+            expectEqual(
+              [status, body.error?.code],
+              [403, "permission_denied"],
+              `${api} after deactivation`,
+            );
+          }
+        } finally {
+          await membershipCall("PATCH", `/${coordinatorA.uid}/status`, tokenA, {
+            status: "active",
+            reason: "smoke-restore",
+          });
+        }
+        expectEqual(
+          (await membershipCall("GET", "", token)).status,
+          200,
+          "after reactivation",
+        );
+      },
+    );
+
+    await check("the last active owner cannot be deactivated", async () => {
+      const owners = (await membersOf(tokenA)).filter(
+        (m) => m.role === "owner" && m.status === "active",
+      );
+      if (owners.length !== 1) {
+        console.log("      skipped: tenant-a has more than one active owner");
+        return;
+      }
+      const {status, body} = await membershipCall(
+        "PATCH",
+        `/${ownerA.uid}/status`,
+        tokenA,
+        {status: "inactive"},
+      );
+      if (status === 200) {
+        // The guard failed and the only owner is now inactive, so no API call
+        // can undo it (an inactive owner is denied): put it back directly.
+        await db
+          .doc(`memberships/${ownerA.uid}_tenant-a`)
+          .update({status: "active"});
+      }
+      expectEqual(
+        [status, body.error?.code],
+        [409, "failed_precondition"],
+        "status",
+      );
+    });
+
+    await check(
+      "an account that already signed in is reused, with no link",
+      async () => {
+        const {status, body} = await membershipCall("POST", "", tokenA, {
+          email: ownerB.email,
+          role: "accountant",
+        });
+        toClean.push(ownerB.uid);
+        expectEqual(
+          [status, body.uid, "passwordResetLink" in body],
+          [201, ownerB.uid, false],
+          "invite response",
+        );
+        const mine = await call(
+          "membershipApi",
+          "GET",
+          "/me/memberships",
+          undefined,
+          tokenB,
+        );
+        expectEqual(
+          mine.body.memberships
+            .map((m: {tenantId: string}) => m.tenantId)
+            .sort(),
+          ["tenant-a", "tenant-b"],
+          "the same user now belongs to both",
+        );
+      },
+    );
+
+    await check(
+      "the owner deactivates the invited member for good",
+      async () => {
+        const {status, body} = await membershipCall(
+          "PATCH",
+          `/${invitedUid}/status`,
+          tokenA,
+          {status: "inactive"},
+        );
+        expectEqual([status, body.status], [200, "inactive"], "response");
+        const member = (await membersOf(tokenA)).find(
+          (m) => m.uid === invitedUid,
+        );
+        expectEqual(member?.status, "inactive", "listed as inactive");
+      },
+    );
+  } finally {
+    for (const uid of toClean) {
+      await db.doc(`memberships/${uid}_tenant-a`).delete();
+    }
+    if (invitedUid) {
+      await adminAuth.deleteUser(invitedUid).catch(() => undefined);
+    }
+  }
 
   console.log(
     failures === 0
