@@ -1,6 +1,6 @@
 // Layer boundaries (spec 03, ADR 0008): domain and application stay free of
 // Firebase, zod and express; only infrastructure may import them. The rules
-// are proven by src/shared/infrastructure/lint-boundaries.test.ts.
+// are proven by test/unit/shared/infrastructure/lint-boundaries.test.ts.
 const frameworkPatterns = [
   {
     group: ["firebase-admin", "firebase-admin/*"],

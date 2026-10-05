@@ -38,7 +38,7 @@ tiene tres capas (ADR 0008):
 
 La dependencia apunta hacia adentro. Lo hace cumplir ESLint
 (`no-restricted-imports` en `functions/.eslintrc.js`) y lo prueba
-`shared/infrastructure/lint-boundaries.test.ts`: `domain` y `application` no
+`test/unit/shared/infrastructure/lint-boundaries.test.ts`: `domain` y `application` no
 importan Firebase, `@google-cloud/*` ni `zod`, y ninguno importa `infrastructure`.
 `shared/application/unit-of-work.ts` es la única excepción de composición (ADR 0008).
 

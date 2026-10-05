@@ -19,7 +19,7 @@ comandos se corren desde `functions/`.
 1. Define la interfaz en `<módulo>/application/<puerto>.ts` con lo mínimo que el
    caso de uso necesita (no copies la API de Firestore).
 2. Escribe su doble en memoria en `<módulo>/application/testing/` y **pruébalo**
-   (`shared/application/testing/fakes.test.ts`). Si participa en transacciones, debe poder hacer rollback.
+   (`test/unit/shared/application/testing/fakes.test.ts`). Si participa en transacciones, debe poder hacer rollback.
 3. Si participa en transacciones, agrégalo a `TransactionContext`
    (`shared/application/unit-of-work.ts`, solo tipos).
 4. Si habla con un sistema que **no** entra en la transacción de Firestore (por
@@ -32,7 +32,7 @@ comandos se corren desde `functions/`.
 
 ## 2. Domain y application: el caso de uso
 
-1. **Test primero** junto al código, en `<módulo>/application/<caso>.test.ts`. Por cada
+1. **Test primero** en `test/unit/<módulo>/application/<caso>.test.ts` (espeja `src/`, ADR 0012). Por cada
    regla: un caso positivo y uno negativo. Verifica también que, al rechazar, no
    se escribió nada (ni dato ni bitácora).
 2. Corre `npm run test:unit` y confirma que falla **por la razón correcta**
@@ -51,13 +51,13 @@ comandos se corren desde `functions/`.
      transacción (y amplía `AuditAction`).
 
 `domain` y `application` no importan Firebase, `@google-cloud/*`, `zod` ni
-`infrastructure`; `npm run lint` lo verifica y `lint-boundaries.test.ts` prueba la
+`infrastructure`; `npm run lint` lo verifica y `test/unit/shared/infrastructure/lint-boundaries.test.ts` prueba la
 regla.
 
 ## 3. Adaptador de Firestore (solo si hay un puerto nuevo)
 
-1. Test de integración primero, junto al adaptador, como
-   `<módulo>/infrastructure/firestore/<nombre>.integration.test.ts` (ida y
+1. Test de integración primero, en
+   `test/integration/<módulo>/infrastructure/firestore/<nombre>.integration.test.ts` (ida y
    vuelta, y atomicidad: si algo falla, no queda nada a medias).
 2. Implementa en `<módulo>/infrastructure/firestore/`. Acepta una `Transaction`
    opcional y úsala cuando exista. Convierte `Date` ↔ `Timestamp` en un mapper.
@@ -78,7 +78,7 @@ usa varios filtros de desigualdad u orden, agrega el índice a
 2. Crea `<módulo>/infrastructure/http/routes/<nombre>/schema.ts` con el zod de
    **entrada** y de **salida**. Usa `.strict()`. El actor nunca va en la entrada.
 3. **Test de contrato primero** en
-   `<módulo>/infrastructure/http/routes/<nombre>/<nombre>.route.integration.test.ts`,
+   `test/integration/<módulo>/infrastructure/http/routes/<nombre>/<nombre>.route.integration.test.ts`,
    llamando a la ruta por HTTP contra el emulador. Cubre como mínimo:
    - sin token → `401`;
    - entrada inválida → `400` (campo faltante, valor fuera de rango, campo extra);
