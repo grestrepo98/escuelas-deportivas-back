@@ -70,7 +70,7 @@ describe("domain layer boundary", () => {
   it("applies to shared/domain too", async () => {
     const violations = await boundaryViolations(
       "src/shared/domain/example.ts",
-      "import {x} from \"firebase-admin\";\nexport const y = x;\n",
+      'import {x} from "firebase-admin";\nexport const y = x;\n',
     );
     expect(violations).toHaveLength(1);
   });
@@ -111,7 +111,7 @@ describe("application layer boundary", () => {
   it("applies to shared/application too", async () => {
     const violations = await boundaryViolations(
       "src/shared/application/example.ts",
-      "import {x} from \"../infrastructure/admin\";\nexport const y = x;\n",
+      'import {x} from "../infrastructure/admin";\nexport const y = x;\n',
     );
     expect(violations).toHaveLength(1);
   });
@@ -137,8 +137,8 @@ describe("infrastructure layer and scripts", () => {
   it("scripts may import anything", async () => {
     const violations = await boundaryViolations(
       scriptFile,
-      "import {x} from \"firebase-admin\";\n" +
-        "import {z} from \"../membership/infrastructure/authorize\";\n" +
+      'import {x} from "firebase-admin";\n' +
+        'import {z} from "../membership/infrastructure/authorize";\n' +
         "export const y = [x, z];\n",
     );
     expect(violations).toEqual([]);

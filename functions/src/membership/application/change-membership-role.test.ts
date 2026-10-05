@@ -1,20 +1,12 @@
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  ChangeMembershipRole,
-} from "./change-membership-role.js";
+import {ChangeMembershipRole} from "./change-membership-role.js";
 import {DomainError} from "../../shared/domain/errors.js";
 import type {Membership} from "../domain/membership.js";
 import {ROLES, type Role} from "../domain/role.js";
 import {FakeClock} from "../../shared/application/testing/fake-clock.js";
-import {
-  InMemoryAuditLogWriter,
-} from "../../audit/application/testing/in-memory-audit-log-writer.js";
-import {
-  InMemoryMembershipRepository,
-} from "./testing/in-memory-membership-repository.js";
-import {
-  InMemoryUnitOfWork,
-} from "../../shared/application/testing/in-memory-unit-of-work.js";
+import {InMemoryAuditLogWriter} from "../../audit/application/testing/in-memory-audit-log-writer.js";
+import {InMemoryMembershipRepository} from "./testing/in-memory-membership-repository.js";
+import {InMemoryUnitOfWork} from "../../shared/application/testing/in-memory-unit-of-work.js";
 
 const T0 = new Date("2026-10-01T00:00:00Z");
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -87,10 +79,12 @@ describe("ChangeMembershipRole — success", () => {
   });
 
   it("writes exactly one audit entry with before and after", async () => {
-    await useCase.execute(input({
-      reason: "promoted",
-      device: {userAgent: "vitest"},
-    }));
+    await useCase.execute(
+      input({
+        reason: "promoted",
+        device: {userAgent: "vitest"},
+      }),
+    );
     expect(auditLog.entries).toHaveLength(1);
     expect(auditLog.entries[0]).toEqual({
       at: NOW,
@@ -114,8 +108,7 @@ describe("ChangeMembershipRole — success", () => {
 
   it("can promote someone to owner", async () => {
     await useCase.execute(input({newRole: "owner"}));
-    expect((await memberships.get("coord-1", "tenant-a"))!.role)
-      .toBe("owner");
+    expect((await memberships.get("coord-1", "tenant-a"))!.role).toBe("owner");
   });
 });
 
@@ -134,37 +127,28 @@ describe("ChangeMembershipRole — only an active owner of the tenant", () => {
 
   it("rejects an inactive owner", async () => {
     await memberships.save(member("owner-2", "owner", {status: "inactive"}));
-    const code = await rejection(
-      useCase.execute(input({actorUid: "owner-2"})),
-    );
+    const code = await rejection(useCase.execute(input({actorUid: "owner-2"})));
     expect(code).toBe("permission_denied");
   });
 
   it("rejects an owner of another tenant", async () => {
-    await memberships.save(
-      member("owner-b", "owner", {tenantId: "tenant-b"}),
-    );
-    const code = await rejection(
-      useCase.execute(input({actorUid: "owner-b"})),
-    );
+    await memberships.save(member("owner-b", "owner", {tenantId: "tenant-b"}));
+    const code = await rejection(useCase.execute(input({actorUid: "owner-b"})));
     expect(code).toBe("permission_denied");
-    expect((await memberships.get("coord-1", "tenant-a"))!.role)
-      .toBe("coordinator");
+    expect((await memberships.get("coord-1", "tenant-a"))!.role).toBe(
+      "coordinator",
+    );
   });
 
   it("rejects an actor with no membership at all", async () => {
-    const code = await rejection(
-      useCase.execute(input({actorUid: "ghost"})),
-    );
+    const code = await rejection(useCase.execute(input({actorUid: "ghost"})));
     expect(code).toBe("permission_denied");
   });
 });
 
 describe("ChangeMembershipRole — target must exist in the tenant", () => {
   it("rejects a missing target with not_found", async () => {
-    const code = await rejection(
-      useCase.execute(input({targetUid: "ghost"})),
-    );
+    const code = await rejection(useCase.execute(input({targetUid: "ghost"})));
     expect(code).toBe("not_found");
   });
 
@@ -191,33 +175,43 @@ describe("ChangeMembershipRole — new role must differ", () => {
 
 describe("ChangeMembershipRole — the tenant keeps an active owner", () => {
   it("rejects the sole owner demoting themselves", async () => {
-    const code = await rejection(useCase.execute(input({
-      targetUid: "owner-1",
-      newRole: "coordinator",
-    })));
+    const code = await rejection(
+      useCase.execute(
+        input({
+          targetUid: "owner-1",
+          newRole: "coordinator",
+        }),
+      ),
+    );
     expect(code).toBe("failed_precondition");
-    expect((await memberships.get("owner-1", "tenant-a"))!.role)
-      .toBe("owner");
+    expect((await memberships.get("owner-1", "tenant-a"))!.role).toBe("owner");
     expect(auditLog.entries).toHaveLength(0);
   });
 
   it("does not count inactive owners as a safety net", async () => {
     await memberships.save(member("owner-2", "owner", {status: "inactive"}));
-    const code = await rejection(useCase.execute(input({
-      targetUid: "owner-1",
-      newRole: "teacher",
-    })));
+    const code = await rejection(
+      useCase.execute(
+        input({
+          targetUid: "owner-1",
+          newRole: "teacher",
+        }),
+      ),
+    );
     expect(code).toBe("failed_precondition");
   });
 
   it("allows demoting an owner when another active owner remains", async () => {
     await memberships.save(member("owner-2", "owner"));
-    await useCase.execute(input({
-      targetUid: "owner-1",
-      newRole: "coordinator",
-    }));
-    expect((await memberships.get("owner-1", "tenant-a"))!.role)
-      .toBe("coordinator");
+    await useCase.execute(
+      input({
+        targetUid: "owner-1",
+        newRole: "coordinator",
+      }),
+    );
+    expect((await memberships.get("owner-1", "tenant-a"))!.role).toBe(
+      "coordinator",
+    );
     expect(await memberships.countActiveByRole("tenant-a", "owner")).toBe(1);
   });
 });
@@ -226,8 +220,9 @@ describe("ChangeMembershipRole — atomicity", () => {
   it("leaves the role untouched when the audit write fails", async () => {
     auditLog.failWith = new Error("audit down");
     await expect(useCase.execute(input())).rejects.toThrow("audit down");
-    expect((await memberships.get("coord-1", "tenant-a"))!.role)
-      .toBe("coordinator");
+    expect((await memberships.get("coord-1", "tenant-a"))!.role).toBe(
+      "coordinator",
+    );
     expect(auditLog.entries).toHaveLength(0);
   });
 });

@@ -1,15 +1,9 @@
 import type {AuditEntry} from "../../../audit/domain/audit-entry.js";
-import type {
-  Category,
-  Group,
-  Venue,
-} from "../../domain/structure.js";
+import type {Category, Group, Venue} from "../../domain/structure.js";
 import type {Tenant} from "../../../tenant/domain/tenant.js";
 import {Timestamp} from "firebase-admin/firestore";
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  FirestoreUnitOfWork,
-} from "../../../shared/infrastructure/firestore-unit-of-work.js";
+import {FirestoreUnitOfWork} from "../../../shared/infrastructure/firestore-unit-of-work.js";
 import {
   clearFirestore,
   testDb,
@@ -92,8 +86,7 @@ describe("FirestoreTenantRepository", () => {
 
   it("round-trips the profile at tenants/{tenantId}", async () => {
     await uow.run((tx) => tx.tenants.save(tenant()));
-    expect(await uow.run((tx) => tx.tenants.get("tenant-a")))
-      .toEqual(tenant());
+    expect(await uow.run((tx) => tx.tenants.get("tenant-a"))).toEqual(tenant());
     const raw = (await db.doc("tenants/tenant-a").get()).data()!;
     expect(raw.createdAt).toBeInstanceOf(Timestamp);
     expect(raw.updatedAt).toBeInstanceOf(Timestamp);
@@ -101,39 +94,38 @@ describe("FirestoreTenantRepository", () => {
   });
 
   it("omits an absent idrdRegistration and contact fields", async () => {
-    await uow.run((tx) => tx.tenants.save(
-      tenant({idrdRegistration: undefined, contact: {}}),
-    ));
+    await uow.run((tx) =>
+      tx.tenants.save(tenant({idrdRegistration: undefined, contact: {}})),
+    );
     const raw = (await db.doc("tenants/tenant-a").get()).data()!;
     expect("idrdRegistration" in raw).toBe(false);
     expect(raw.contact).toEqual({});
   });
 
-  it("reads a tenant written before spec 02 (no contact, no updatedAt)",
-    async () => {
-      await db.doc("tenants/tenant-a").set({
-        name: "Argentinos Juniors",
-        status: "active",
-        createdAt: Timestamp.fromDate(T0),
-      });
-      expect(await uow.run((tx) => tx.tenants.get("tenant-a"))).toEqual({
-        id: "tenant-a",
-        name: "Argentinos Juniors",
-        status: "active",
-        contact: {},
-        createdAt: T0,
-        updatedAt: T0,
-      });
+  it("reads a tenant written before spec 02 (no contact, no updatedAt)", async () => {
+    await db.doc("tenants/tenant-a").set({
+      name: "Argentinos Juniors",
+      status: "active",
+      createdAt: Timestamp.fromDate(T0),
     });
+    expect(await uow.run((tx) => tx.tenants.get("tenant-a"))).toEqual({
+      id: "tenant-a",
+      name: "Argentinos Juniors",
+      status: "active",
+      contact: {},
+      createdAt: T0,
+      updatedAt: T0,
+    });
+  });
 });
 
 describe("Firestore venues", () => {
   it("round-trips at tenants/{tenantId}/venues/{venueId}", async () => {
     await uow.run((tx) => tx.venues.save(venue()));
-    expect(await uow.run((tx) => tx.venues.get("tenant-a", "venue-1")))
-      .toEqual(venue());
-    const raw = (await db.doc("tenants/tenant-a/venues/venue-1").get())
-      .data()!;
+    expect(await uow.run((tx) => tx.venues.get("tenant-a", "venue-1"))).toEqual(
+      venue(),
+    );
+    const raw = (await db.doc("tenants/tenant-a/venues/venue-1").get()).data()!;
     expect(raw.createdAt).toBeInstanceOf(Timestamp);
     expect("id" in raw).toBe(false);
     expect("tenantId" in raw).toBe(false);
@@ -142,19 +134,19 @@ describe("Firestore venues", () => {
   it("removes facility when saved without it", async () => {
     await uow.run((tx) => tx.venues.save(venue()));
     await uow.run((tx) => tx.venues.save(venue({facility: undefined})));
-    const raw = (await db.doc("tenants/tenant-a/venues/venue-1").get())
-      .data()!;
+    const raw = (await db.doc("tenants/tenant-a/venues/venue-1").get()).data()!;
     expect("facility" in raw).toBe(false);
   });
 
   it("isolates tenants on get and list", async () => {
     await uow.run((tx) => tx.venues.save(venue()));
     await uow.run((tx) => tx.venues.save(venue({id: "venue-2"})));
-    await uow.run((tx) => tx.venues.save(
-      venue({id: "venue-3", tenantId: "tenant-b"}),
-    ));
-    expect(await uow.run((tx) => tx.venues.get("tenant-b", "venue-1")))
-      .toBeNull();
+    await uow.run((tx) =>
+      tx.venues.save(venue({id: "venue-3", tenantId: "tenant-b"})),
+    );
+    expect(
+      await uow.run((tx) => tx.venues.get("tenant-b", "venue-1")),
+    ).toBeNull();
     const listed = await uow.run((tx) => tx.venues.listByTenant("tenant-a"));
     expect(listed.map((v) => v.id).sort()).toEqual(["venue-1", "venue-2"]);
     expect(listed.every((v) => v.tenantId === "tenant-a")).toBe(true);
@@ -170,38 +162,44 @@ describe("Firestore venues", () => {
 describe("Firestore categories", () => {
   it("round-trips and keeps an empty birthYears list", async () => {
     await uow.run((tx) => tx.categories.save(category()));
-    await uow.run((tx) => tx.categories.save(
-      category({id: "cat-2", name: "Avanzados", birthYears: []}),
-    ));
-    expect(await uow.run((tx) => tx.categories.get("tenant-a", "cat-1")))
-      .toEqual(category());
-    expect((await uow.run((tx) => tx.categories.get("tenant-a", "cat-2")))!
-      .birthYears).toEqual([]);
-    const listed = await uow.run(
-      (tx) => tx.categories.listByTenant("tenant-a"),
+    await uow.run((tx) =>
+      tx.categories.save(
+        category({id: "cat-2", name: "Avanzados", birthYears: []}),
+      ),
+    );
+    expect(
+      await uow.run((tx) => tx.categories.get("tenant-a", "cat-1")),
+    ).toEqual(category());
+    expect(
+      (await uow.run((tx) => tx.categories.get("tenant-a", "cat-2")))!
+        .birthYears,
+    ).toEqual([]);
+    const listed = await uow.run((tx) =>
+      tx.categories.listByTenant("tenant-a"),
     );
     expect(listed).toHaveLength(2);
-    expect(await uow.run((tx) => tx.categories.listByTenant("tenant-b")))
-      .toEqual([]);
+    expect(
+      await uow.run((tx) => tx.categories.listByTenant("tenant-b")),
+    ).toEqual([]);
   });
 });
 
 describe("Firestore groups", () => {
   it("round-trips with its schedule", async () => {
     await uow.run((tx) => tx.groups.save(group()));
-    expect(await uow.run((tx) => tx.groups.get("tenant-a", "group-1")))
-      .toEqual(group());
-    const raw = (await db.doc("tenants/tenant-a/groups/group-1").get())
-      .data()!;
+    expect(await uow.run((tx) => tx.groups.get("tenant-a", "group-1"))).toEqual(
+      group(),
+    );
+    const raw = (await db.doc("tenants/tenant-a/groups/group-1").get()).data()!;
     expect(raw.venueId).toBe("venue-1");
     expect(raw.schedule).toEqual([{weekday: 2, start: "17:00", end: "18:30"}]);
   });
 
   it("lists only the groups of the requested tenant", async () => {
     await uow.run((tx) => tx.groups.save(group()));
-    await uow.run((tx) => tx.groups.save(
-      group({id: "group-2", tenantId: "tenant-b"}),
-    ));
+    await uow.run((tx) =>
+      tx.groups.save(group({id: "group-2", tenantId: "tenant-b"})),
+    );
     const listed = await uow.run((tx) => tx.groups.listByTenant("tenant-a"));
     expect(listed.map((g) => g.id)).toEqual(["group-1"]);
   });
@@ -225,38 +223,43 @@ describe("FirestoreUnitOfWork — structure atomicity", () => {
   });
 
   it("does not change the venue when the work throws", async () => {
-    await expect(uow.run(async (tx) => {
-      await tx.venues.save(venue({name: "Cambiada"}));
-      throw new Error("boom");
-    })).rejects.toThrow("boom");
+    await expect(
+      uow.run(async (tx) => {
+        await tx.venues.save(venue({name: "Cambiada"}));
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
     expect(await nameOf()).toBe("Sede Norte");
     expect(await auditCount()).toBe(0);
   });
 
-  it("does not change the venue when Firestore rejects the audit write",
-    async () => {
-      const invalid = entry({before: {name: undefined}});
-      await expect(uow.run(async (tx) => {
+  it("does not change the venue when Firestore rejects the audit write", async () => {
+    const invalid = entry({before: {name: undefined}});
+    await expect(
+      uow.run(async (tx) => {
         await tx.venues.save(venue({name: "Cambiada"}));
         await tx.auditLog.append(invalid);
-      })).rejects.toThrow();
-      expect(await nameOf()).toBe("Sede Norte");
-      expect(await auditCount()).toBe(0);
-    });
+      }),
+    ).rejects.toThrow();
+    expect(await nameOf()).toBe("Sede Norte");
+    expect(await auditCount()).toBe(0);
+  });
 
-  it("does not change the tenant profile when the audit write fails",
-    async () => {
-      await uow.run((tx) => tx.tenants.save(tenant()));
-      const invalid = entry({
-        action: "tenant.updated",
-        target: {type: "tenant", id: "tenant-a"},
-        before: {name: undefined},
-      });
-      await expect(uow.run(async (tx) => {
+  it("does not change the tenant profile when the audit write fails", async () => {
+    await uow.run((tx) => tx.tenants.save(tenant()));
+    const invalid = entry({
+      action: "tenant.updated",
+      target: {type: "tenant", id: "tenant-a"},
+      before: {name: undefined},
+    });
+    await expect(
+      uow.run(async (tx) => {
         await tx.tenants.save(tenant({name: "Cambiada"}));
         await tx.auditLog.append(invalid);
-      })).rejects.toThrow();
-      expect((await db.doc("tenants/tenant-a").get()).data()!.name)
-        .toBe("Argentinos Juniors");
-    });
+      }),
+    ).rejects.toThrow();
+    expect((await db.doc("tenants/tenant-a").get()).data()!.name).toBe(
+      "Argentinos Juniors",
+    );
+  });
 });

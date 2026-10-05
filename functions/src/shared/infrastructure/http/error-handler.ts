@@ -13,25 +13,25 @@ const STATUSES: Record<DomainErrorCode, number> = {
 // 4xx `status` and a `type` such as "entity.parse.failed".
 function isBodyError(error: unknown): boolean {
   const {status, type} = (error ?? {}) as {status?: unknown; type?: unknown};
-  return typeof type === "string" && typeof status === "number" &&
-    status >= 400 && status < 500;
+  return (
+    typeof type === "string" &&
+    typeof status === "number" &&
+    status >= 400 &&
+    status < 500
+  );
 }
 
 // Business-rule violations keep their message; anything unexpected is hidden
 // behind a generic error so internals never reach the client (ADR 0009).
-export const errorHandler: ErrorRequestHandler = (
-  error,
-  _req,
-  res,
-  next,
-) => {
+export const errorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (res.headersSent) {
     next(error);
     return;
   }
   if (error instanceof DomainError) {
-    res.status(STATUSES[error.code]).json(
-      {error: {code: error.code, message: error.message}});
+    res
+      .status(STATUSES[error.code])
+      .json({error: {code: error.code, message: error.message}});
     return;
   }
   if (isBodyError(error)) {
@@ -40,6 +40,5 @@ export const errorHandler: ErrorRequestHandler = (
     });
     return;
   }
-  res.status(500).json(
-    {error: {code: "internal", message: "Internal error"}});
+  res.status(500).json({error: {code: "internal", message: "Internal error"}});
 };

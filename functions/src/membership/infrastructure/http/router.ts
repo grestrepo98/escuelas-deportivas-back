@@ -6,6 +6,8 @@ export function membershipRouter(): Router {
   const router = Router();
   router.get("/me/memberships", listMyMemberships);
   router.patch(
-    "/tenants/:tenantId/memberships/:uid/role", changeMembershipRole);
+    "/tenants/:tenantId/memberships/:uid/role",
+    changeMembershipRole,
+  );
   return router;
 }

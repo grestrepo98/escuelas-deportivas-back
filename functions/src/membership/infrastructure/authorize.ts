@@ -1,12 +1,7 @@
-import {
-  isActiveMembershipOf,
-  type Membership,
-} from "../domain/membership.js";
+import {isActiveMembershipOf, type Membership} from "../domain/membership.js";
 import type {Firestore} from "firebase-admin/firestore";
 import {DomainError} from "../../shared/domain/errors.js";
-import {
-  FirestoreMembershipRepository,
-} from "./firestore/firestore-membership-repository.js";
+import {FirestoreMembershipRepository} from "./firestore/firestore-membership-repository.js";
 
 // The uid always comes from the verified token (`res.locals.uid`, set by the
 // authenticate middleware), never from the payload.
@@ -26,8 +21,10 @@ export async function authorizeTenantMember(
   uid: string,
   tenantId: string,
 ): Promise<Membership> {
-  const membership = await new FirestoreMembershipRepository(db)
-    .get(uid, tenantId);
+  const membership = await new FirestoreMembershipRepository(db).get(
+    uid,
+    tenantId,
+  );
   if (!membership || !isActiveMembershipOf(membership, tenantId)) {
     throw new DomainError(
       "permission_denied",

@@ -6,15 +6,9 @@ import type {Membership} from "../../membership/domain/membership.js";
 import type {Role} from "../../membership/domain/role.js";
 import type {Group, Venue} from "../domain/structure.js";
 import {FakeClock} from "../../shared/application/testing/fake-clock.js";
-import {
-  InMemoryAuditLogWriter,
-} from "../../audit/application/testing/in-memory-audit-log-writer.js";
-import {
-  InMemoryMembershipRepository,
-} from "../../membership/application/testing/in-memory-membership-repository.js";
-import {
-  InMemoryUnitOfWork,
-} from "../../shared/application/testing/in-memory-unit-of-work.js";
+import {InMemoryAuditLogWriter} from "../../audit/application/testing/in-memory-audit-log-writer.js";
+import {InMemoryMembershipRepository} from "../../membership/application/testing/in-memory-membership-repository.js";
+import {InMemoryUnitOfWork} from "../../shared/application/testing/in-memory-unit-of-work.js";
 
 const T0 = new Date("2026-10-01T00:00:00Z");
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -94,9 +88,7 @@ const create = (overrides = {}) => ({
 
 describe("SaveVenue — create", () => {
   it("creates an active venue and one audit entry", async () => {
-    const {venueId} = await saveVenue.execute(
-      create({facility: "Cancha 2"}),
-    );
+    const {venueId} = await saveVenue.execute(create({facility: "Cancha 2"}));
     const saved = (await uow.venues.get("tenant-a", venueId))!;
     expect(saved).toMatchObject({
       name: "Sede Norte",
@@ -124,8 +116,13 @@ describe("SaveVenue — create", () => {
     expect("facility" in saved).toBe(false);
   });
 
-  it.each<Role>(["coordinator", "accountant", "teacher", "guardian",
-    "adultPlayer"])("rejects %s", async (role) => {
+  it.each<Role>([
+    "coordinator",
+    "accountant",
+    "teacher",
+    "guardian",
+    "adultPlayer",
+  ])("rejects %s", async (role) => {
     await memberships.save(member("u-1", role));
     const code = await rejection(saveVenue.execute(create({actorUid: "u-1"})));
     expect(code).toBe("permission_denied");
@@ -147,10 +144,12 @@ describe("SaveVenue — create", () => {
   });
 
   it("rejects a blank name or address", async () => {
-    expect(await rejection(saveVenue.execute(create({name: " "}))))
-      .toBe("invalid_argument");
-    expect(await rejection(saveVenue.execute(create({address: ""}))))
-      .toBe("invalid_argument");
+    expect(await rejection(saveVenue.execute(create({name: " "})))).toBe(
+      "invalid_argument",
+    );
+    expect(await rejection(saveVenue.execute(create({address: ""})))).toBe(
+      "invalid_argument",
+    );
   });
 
   it("rejects a name used by an active venue, ignoring case", async () => {
@@ -201,23 +200,21 @@ describe("SaveVenue — update", () => {
   });
 
   it("allows keeping its own name", async () => {
-    await expect(saveVenue.execute(
-      create({venueId: "venue-x", address: "Calle 9"}),
-    )).resolves.toEqual({venueId: "venue-x"});
+    await expect(
+      saveVenue.execute(create({venueId: "venue-x", address: "Calle 9"})),
+    ).resolves.toEqual({venueId: "venue-x"});
   });
 
   it("rejects a name used by another active venue", async () => {
     await uow.venues.save(venue({id: "venue-y", name: "Sede Sur"}));
-    const code = await rejection(saveVenue.execute(
-      create({venueId: "venue-x", name: "sede sur"}),
-    ));
+    const code = await rejection(
+      saveVenue.execute(create({venueId: "venue-x", name: "sede sur"})),
+    );
     expect(code).toBe("failed_precondition");
   });
 
   it("rejects a venue that does not exist", async () => {
-    const code = await rejection(
-      saveVenue.execute(create({venueId: "nope"})),
-    );
+    const code = await rejection(saveVenue.execute(create({venueId: "nope"})));
     expect(code).toBe("not_found");
   });
 
@@ -231,9 +228,9 @@ describe("SaveVenue — update", () => {
 
   it("rejects non-owners", async () => {
     await memberships.save(member("c1", "coordinator"));
-    const code = await rejection(saveVenue.execute(
-      create({venueId: "venue-x", actorUid: "c1"}),
-    ));
+    const code = await rejection(
+      saveVenue.execute(create({venueId: "venue-x", actorUid: "c1"})),
+    );
     expect(code).toBe("permission_denied");
   });
 });
@@ -268,15 +265,15 @@ describe("SetVenueStatus", () => {
     });
   });
 
-  it("rejects closing a venue with active groups, changing nothing",
-    async () => {
-      await uow.groups.save(group());
-      const code = await rejection(setStatus.execute(close()));
-      expect(code).toBe("failed_precondition");
-      expect((await uow.venues.get("tenant-a", "venue-x"))!.status)
-        .toBe("active");
-      expect(auditLog.entries).toHaveLength(0);
-    });
+  it("rejects closing a venue with active groups, changing nothing", async () => {
+    await uow.groups.save(group());
+    const code = await rejection(setStatus.execute(close()));
+    expect(code).toBe("failed_precondition");
+    expect((await uow.venues.get("tenant-a", "venue-x"))!.status).toBe(
+      "active",
+    );
+    expect(auditLog.entries).toHaveLength(0);
+  });
 
   it("reopens a closed venue and audits it", async () => {
     await uow.venues.save(venue({status: "closed"}));
@@ -294,8 +291,9 @@ describe("SetVenueStatus", () => {
     await uow.venues.save(venue({id: "venue-y"}));
     const code = await rejection(setStatus.execute(close({status: "active"})));
     expect(code).toBe("failed_precondition");
-    expect((await uow.venues.get("tenant-a", "venue-x"))!.status)
-      .toBe("closed");
+    expect((await uow.venues.get("tenant-a", "venue-x"))!.status).toBe(
+      "closed",
+    );
   });
 
   it("rejects a status that is already set", async () => {
@@ -308,8 +306,13 @@ describe("SetVenueStatus", () => {
     expect(code).toBe("not_found");
   });
 
-  it.each<Role>(["coordinator", "accountant", "teacher", "guardian",
-    "adultPlayer"])("rejects %s", async (role) => {
+  it.each<Role>([
+    "coordinator",
+    "accountant",
+    "teacher",
+    "guardian",
+    "adultPlayer",
+  ])("rejects %s", async (role) => {
     await memberships.save(member("u-1", role));
     const code = await rejection(setStatus.execute(close({actorUid: "u-1"})));
     expect(code).toBe("permission_denied");

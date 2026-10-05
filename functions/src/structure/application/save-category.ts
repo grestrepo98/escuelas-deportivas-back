@@ -42,9 +42,9 @@ export class SaveCategory {
       const birthYears = validateBirthYears(input.birthYears);
       const now = this.clock.now();
 
-      const existing = input.categoryId ?
-        await categories.get(tenantId, input.categoryId) :
-        null;
+      const existing = input.categoryId
+        ? await categories.get(tenantId, input.categoryId)
+        : null;
       if (input.categoryId && !existing) {
         throw new DomainError("not_found", "Category not found");
       }

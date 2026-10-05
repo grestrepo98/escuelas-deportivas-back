@@ -1,6 +1,4 @@
-import type {
-  StructureRepository,
-} from "../../application/structure-repository.js";
+import type {StructureRepository} from "../../application/structure-repository.js";
 import type {Firestore, Transaction} from "firebase-admin/firestore";
 import type {StructureMapper} from "./structure-mapper.js";
 
@@ -24,9 +22,9 @@ export class FirestoreStructureRepository<
   async get(tenantId: string, id: string): Promise<T | null> {
     const ref = this.db.doc(this.path(tenantId, id));
     const snap = this.tx ? await this.tx.get(ref) : await ref.get();
-    return snap.exists ?
-      this.mapper.fromDoc(snap.id, tenantId, snap.data()!) :
-      null;
+    return snap.exists
+      ? this.mapper.fromDoc(snap.id, tenantId, snap.data()!)
+      : null;
   }
 
   async save(entity: T): Promise<void> {

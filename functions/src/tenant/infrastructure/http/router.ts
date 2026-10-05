@@ -1,7 +1,5 @@
 import {Router} from "express";
-import {
-  updateTenantProfile,
-} from "./routes/updateTenantProfile/handler.js";
+import {updateTenantProfile} from "./routes/updateTenantProfile/handler.js";
 
 export function tenantRouter(): Router {
   const router = Router();

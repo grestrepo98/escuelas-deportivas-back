@@ -45,8 +45,11 @@ export class SetVenueStatus {
 
         if (status === "closed") {
           const tenantGroups = await groups.listByTenant(tenantId);
-          if (tenantGroups.some((g) =>
-            g.venueId === venueId && g.status === "active")) {
+          if (
+            tenantGroups.some(
+              (g) => g.venueId === venueId && g.status === "active",
+            )
+          ) {
             throw new DomainError(
               "failed_precondition",
               "Close or move the active groups of the venue first",

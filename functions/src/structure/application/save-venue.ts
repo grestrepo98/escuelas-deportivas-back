@@ -41,9 +41,9 @@ export class SaveVenue {
       const facility = input.facility?.trim() || undefined;
       const now = this.clock.now();
 
-      const existing = input.venueId ?
-        await venues.get(tenantId, input.venueId) :
-        null;
+      const existing = input.venueId
+        ? await venues.get(tenantId, input.venueId)
+        : null;
       if (input.venueId && !existing) {
         throw new DomainError("not_found", "Venue not found");
       }

@@ -1,12 +1,11 @@
-import type {
-  StructureRepository,
-} from "../structure-repository.js";
+import type {StructureRepository} from "../structure-repository.js";
 
 type Stored = {id: string; tenantId: string};
 
 // One generic fake serves venues, categories and groups.
-export class InMemoryStructureRepository<T extends Stored>
-implements StructureRepository<T> {
+export class InMemoryStructureRepository<
+  T extends Stored,
+> implements StructureRepository<T> {
   private items = new Map<string, T>();
   private sequence = 0;
 

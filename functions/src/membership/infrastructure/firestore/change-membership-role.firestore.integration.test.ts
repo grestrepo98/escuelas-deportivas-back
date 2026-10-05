@@ -1,15 +1,9 @@
-import {
-  ChangeMembershipRole,
-} from "../../application/change-membership-role.js";
+import {ChangeMembershipRole} from "../../application/change-membership-role.js";
 import {type Clock} from "../../../shared/domain/clock.js";
 import {type Membership} from "../../domain/membership.js";
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  FirestoreMembershipRepository,
-} from "./firestore-membership-repository.js";
-import {
-  FirestoreUnitOfWork,
-} from "../../../shared/infrastructure/firestore-unit-of-work.js";
+import {FirestoreMembershipRepository} from "./firestore-membership-repository.js";
+import {FirestoreUnitOfWork} from "../../../shared/infrastructure/firestore-unit-of-work.js";
 import {
   clearFirestore,
   testDb,
@@ -59,15 +53,16 @@ describe("ChangeMembershipRole on Firestore", () => {
     expect(audit.docs[0].data().at).toBeDefined();
   });
 
-  it("refuses to demote the last active owner and writes nothing",
-    async () => {
-      await expect(useCase.execute({
+  it("refuses to demote the last active owner and writes nothing", async () => {
+    await expect(
+      useCase.execute({
         tenantId: "tenant-a",
         actorUid: "owner-1",
         targetUid: "owner-1",
         newRole: "coordinator",
-      })).rejects.toMatchObject({code: "failed_precondition"});
-      expect((await repo.get("owner-1", "tenant-a"))!.role).toBe("owner");
-      expect((await auditCollection().get()).size).toBe(0);
-    });
+      }),
+    ).rejects.toMatchObject({code: "failed_precondition"});
+    expect((await repo.get("owner-1", "tenant-a"))!.role).toBe("owner");
+    expect((await auditCollection().get()).size).toBe(0);
+  });
 });

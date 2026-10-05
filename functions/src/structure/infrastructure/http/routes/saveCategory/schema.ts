@@ -4,10 +4,12 @@ import {z} from "zod";
 // PUT /tenants/:tenantId/categories/:categoryId. The tenant and the category
 // travel in the route; the actor is never part of the input: it comes from
 // the verified token. `birthYears` may be empty (a category by level).
-export const saveCategoryInput = z.object({
-  name: z.string(),
-  birthYears: z.array(z.number().int()),
-}).strict();
+export const saveCategoryInput = z
+  .object({
+    name: z.string(),
+    birthYears: z.array(z.number().int()),
+  })
+  .strict();
 
 export const saveCategoryOutput = z.object({
   categoryId: z.string(),

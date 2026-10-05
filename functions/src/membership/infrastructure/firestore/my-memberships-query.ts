@@ -17,7 +17,8 @@ export async function findMyMemberships(
   db: Firestore,
   uid: string,
 ): Promise<MyMembership[]> {
-  const snap = await db.collection("memberships")
+  const snap = await db
+    .collection("memberships")
     .where("uid", "==", uid)
     .where("status", "==", "active")
     .get();
@@ -27,17 +28,23 @@ export async function findMyMemberships(
   const tenants = await db.getAll(
     ...memberships.map((m) => db.doc(`tenants/${m.tenantId}`)),
   );
-  const names = new Map(tenants
-    .filter((t) => t.exists)
-    .map((t) => [t.id, t.data()!.name as string]));
+  const names = new Map(
+    tenants
+      .filter((t) => t.exists)
+      .map((t) => [t.id, t.data()!.name as string]),
+  );
 
   return memberships.flatMap((m) => {
     const tenantName = names.get(m.tenantId);
-    return tenantName === undefined ? [] : [{
-      tenantId: m.tenantId,
-      tenantName,
-      role: m.role,
-      scope: m.scope,
-    }];
+    return tenantName === undefined
+      ? []
+      : [
+          {
+            tenantId: m.tenantId,
+            tenantName,
+            role: m.role,
+            scope: m.scope,
+          },
+        ];
   });
 }

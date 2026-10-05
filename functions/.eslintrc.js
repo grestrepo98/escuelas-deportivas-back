@@ -55,10 +55,7 @@ module.exports = {
     tsconfigRootDir: __dirname,
     sourceType: "module",
   },
-  plugins: [
-    "@typescript-eslint",
-    "import",
-  ],
+  plugins: ["@typescript-eslint", "import"],
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
     "/generated/**/*", // Ignore generated files.
@@ -67,7 +64,7 @@ module.exports = {
   rules: {
     "import/no-unresolved": 0,
     // Express exposes its router as a factory function, not a constructor.
-    "new-cap": ["error", {"capIsNewExceptions": ["Router"]}],
+    "new-cap": ["error", {capIsNewExceptions: ["Router"]}],
     // TypeScript types already document signatures.
     "require-jsdoc": 0,
     "valid-jsdoc": 0,
@@ -76,21 +73,27 @@ module.exports = {
     {
       files: ["src/*/domain/**/*.ts"],
       rules: {
-        "no-restricted-imports": ["error", {
-          patterns: [
-            ...frameworkPatterns,
-            infrastructurePattern,
-            applicationPattern,
-          ],
-        }],
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              ...frameworkPatterns,
+              infrastructurePattern,
+              applicationPattern,
+            ],
+          },
+        ],
       },
     },
     {
       files: ["src/*/application/**/*.ts"],
       rules: {
-        "no-restricted-imports": ["error", {
-          patterns: [...frameworkPatterns, infrastructurePattern],
-        }],
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [...frameworkPatterns, infrastructurePattern],
+          },
+        ],
       },
     },
   ],

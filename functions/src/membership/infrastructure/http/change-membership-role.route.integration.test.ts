@@ -1,12 +1,8 @@
 import {ROLES, type Role} from "../../domain/role.js";
 import {type Membership} from "../../domain/membership.js";
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  FirestoreMembershipRepository,
-} from "../firestore/firestore-membership-repository.js";
-import {
-  changeMembershipRoleOutput,
-} from "./routes/changeMembershipRole/schema.js";
+import {FirestoreMembershipRepository} from "../firestore/firestore-membership-repository.js";
+import {changeMembershipRoleOutput} from "./routes/changeMembershipRole/schema.js";
 import {
   callApi,
   clearAuth,
@@ -76,7 +72,9 @@ beforeEach(async () => {
 describe("PATCH /tenants/:tenantId/memberships/:uid/role — success", () => {
   it("changes the role and writes exactly one audit entry", async () => {
     const {status, body} = await change(
-      ownerA, validInput({reason: "promoted"}));
+      ownerA,
+      validInput({reason: "promoted"}),
+    );
     expect(status).toBe(200);
     expect(changeMembershipRoleOutput.parse(body)).toEqual({
       membershipId: `${coordinator.uid}_tenant-a`,
@@ -102,8 +100,9 @@ describe("PATCH /tenants/:tenantId/memberships/:uid/role — success", () => {
 
   it("keeps the target's scope", async () => {
     await change(ownerA, validInput());
-    expect((await repo.get(coordinator.uid, "tenant-a"))!.scope.venueIds)
-      .toEqual(["v1"]);
+    expect(
+      (await repo.get(coordinator.uid, "tenant-a"))!.scope.venueIds,
+    ).toEqual(["v1"]);
   });
 });
 
@@ -125,44 +124,46 @@ describe("PATCH …/role — tenant isolation", () => {
     expect((await auditCollection().get()).size).toBe(0);
   });
 
-  it("does not let tenant-b's owner reach tenant-a through their own tenant",
-    async () => {
-      // Same target uid, but the request is scoped to the caller's tenant.
-      const {status, body} = await change(
-        ownerB, validInput(), {tenantId: "tenant-b"});
-      expect(status).toBe(404);
-      expect(body.error.code).toBe("not_found");
-      expect(await roleOf(coordinator.uid)).toBe("coordinator");
+  it("does not let tenant-b's owner reach tenant-a through their own tenant", async () => {
+    // Same target uid, but the request is scoped to the caller's tenant.
+    const {status, body} = await change(ownerB, validInput(), {
+      tenantId: "tenant-b",
     });
+    expect(status).toBe(404);
+    expect(body.error.code).toBe("not_found");
+    expect(await roleOf(coordinator.uid)).toBe("coordinator");
+  });
 });
 
 describe("PATCH …/role — only owners", () => {
-  it.each(ROLES.filter((r) => r !== "owner"))(
-    "denies a %s", async (role) => {
-      const caller = await createUser(`${role}@example.com`);
-      await repo.save(membership(caller.uid, "tenant-a", role));
-      const {status, body} = await change(caller, validInput());
-      expect(status).toBe(403);
-      expect(body.error.code).toBe("permission_denied");
-      expect(await roleOf(coordinator.uid)).toBe("coordinator");
-      expect((await auditCollection().get()).size).toBe(0);
-    });
+  it.each(ROLES.filter((r) => r !== "owner"))("denies a %s", async (role) => {
+    const caller = await createUser(`${role}@example.com`);
+    await repo.save(membership(caller.uid, "tenant-a", role));
+    const {status, body} = await change(caller, validInput());
+    expect(status).toBe(403);
+    expect(body.error.code).toBe("permission_denied");
+    expect(await roleOf(coordinator.uid)).toBe("coordinator");
+    expect((await auditCollection().get()).size).toBe(0);
+  });
 
-  it("denies an owner right after being deactivated, with the same token",
-    async () => {
-      await repo.save(
-        membership(ownerA.uid, "tenant-a", "owner", {status: "inactive"}));
-      const {status, body} = await change(ownerA, validInput());
-      expect(status).toBe(403);
-      expect(body.error.code).toBe("permission_denied");
-      expect(await roleOf(coordinator.uid)).toBe("coordinator");
-    });
+  it("denies an owner right after being deactivated, with the same token", async () => {
+    await repo.save(
+      membership(ownerA.uid, "tenant-a", "owner", {status: "inactive"}),
+    );
+    const {status, body} = await change(ownerA, validInput());
+    expect(status).toBe(403);
+    expect(body.error.code).toBe("permission_denied");
+    expect(await roleOf(coordinator.uid)).toBe("coordinator");
+  });
 });
 
 describe("PATCH …/role — business rules", () => {
   it("refuses to demote the last active owner", async () => {
     const {status, body} = await change(
-      ownerA, validInput({newRole: "coordinator"}), {uid: ownerA.uid});
+      ownerA,
+      validInput({newRole: "coordinator"}),
+      {uid: ownerA.uid},
+    );
     expect(status).toBe(409);
     expect(body.error.code).toBe("failed_precondition");
     expect(await roleOf(ownerA.uid)).toBe("owner");
@@ -171,14 +172,15 @@ describe("PATCH …/role — business rules", () => {
 
   it("refuses an unchanged role", async () => {
     const {status, body} = await change(
-      ownerA, validInput({newRole: "coordinator"}));
+      ownerA,
+      validInput({newRole: "coordinator"}),
+    );
     expect(status).toBe(409);
     expect(body.error.code).toBe("failed_precondition");
   });
 
   it("answers not-found for a target without membership", async () => {
-    const {status, body} = await change(
-      ownerA, validInput(), {uid: "nobody"});
+    const {status, body} = await change(ownerA, validInput(), {uid: "nobody"});
     expect(status).toBe(404);
     expect(body.error.code).toBe("not_found");
   });
@@ -214,7 +216,7 @@ describe("PATCH …/role — input validation", () => {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${ownerA.idToken}`,
+          Authorization: `Bearer ${ownerA.idToken}`,
         },
         body: raw,
       },

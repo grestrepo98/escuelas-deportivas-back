@@ -27,7 +27,9 @@ export function isActiveMembershipOf(
   membership: Membership | null | undefined,
   tenantId: string,
 ): boolean {
-  return membership != null &&
+  return (
+    membership != null &&
     membership.tenantId === tenantId &&
-    membership.status === "active";
+    membership.status === "active"
+  );
 }

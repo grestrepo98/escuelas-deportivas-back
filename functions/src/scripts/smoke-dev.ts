@@ -21,7 +21,8 @@ type CallResult = {status: number; body: any}; // eslint-disable-line
 
 const userOf = (role: SeedUser["role"], tenantId: string): SeedUser => {
   const user = SEED_USERS.find(
-    (u) => u.role === role && u.tenantId === tenantId);
+    (u) => u.role === role && u.tenantId === tenantId,
+  );
   if (!user) throw new Error(`No seed user for ${role} in ${tenantId}`);
   return user;
 };
@@ -32,16 +33,19 @@ async function main(): Promise<void> {
 
   const apiKey = isEmulator ? "fake" : process.env.FIREBASE_API_KEY;
   if (!apiKey) {
-    throw new Error("--target dev needs FIREBASE_API_KEY (the dev project's " +
-      "Web API key, used only to sign in the seed users)");
+    throw new Error(
+      "--target dev needs FIREBASE_API_KEY (the dev project's " +
+        "Web API key, used only to sign in the seed users)",
+    );
   }
-  const authBase = isEmulator ?
-    `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com` :
-    "https://identitytoolkit.googleapis.com";
+  const authBase = isEmulator
+    ? `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com`
+    : "https://identitytoolkit.googleapis.com";
   // `api` is the function name (membershipApi, tenantApi, structureApi).
-  const apiUrl = (api: string, path: string) => isEmulator ?
-    `http://127.0.0.1:5001/${args.projectId}/us-central1/${api}${path}` :
-    `https://us-central1-${args.projectId}.cloudfunctions.net/${api}${path}`;
+  const apiUrl = (api: string, path: string) =>
+    isEmulator
+      ? `http://127.0.0.1:5001/${args.projectId}/us-central1/${api}${path}`
+      : `https://us-central1-${args.projectId}.cloudfunctions.net/${api}${path}`;
 
   const signIn = async (user: SeedUser): Promise<string> => {
     const response = await fetch(
@@ -59,7 +63,8 @@ async function main(): Promise<void> {
     if (!response.ok) {
       throw new Error(
         `Sign-in failed for ${user.email} (${response.status}). ` +
-        "Was the seed run against this target with this password?");
+          "Was the seed run against this target with this password?",
+      );
     }
     return ((await response.json()) as {idToken: string}).idToken;
   };
@@ -82,9 +87,18 @@ async function main(): Promise<void> {
     return {status: response.status, body: await response.json()};
   };
   const changeRole = (
-    token: string, uid: string, newRole: string, reason?: string,
-  ) => call("membershipApi", "PATCH",
-    `/tenants/tenant-a/memberships/${uid}/role`, {newRole, reason}, token);
+    token: string,
+    uid: string,
+    newRole: string,
+    reason?: string,
+  ) =>
+    call(
+      "membershipApi",
+      "PATCH",
+      `/tenants/tenant-a/memberships/${uid}/role`,
+      {newRole, reason},
+      token,
+    );
 
   const app = initializeApp({projectId: args.projectId});
   const db = getFirestore(app);
@@ -106,8 +120,10 @@ async function main(): Promise<void> {
   };
   const expectEqual = (actual: unknown, expected: unknown, what: string) => {
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      throw new Error(`${what}: expected ${JSON.stringify(expected)}, ` +
-        `got ${JSON.stringify(actual)}`);
+      throw new Error(
+        `${what}: expected ${JSON.stringify(expected)}, ` +
+          `got ${JSON.stringify(actual)}`,
+      );
     }
   };
 
@@ -116,66 +132,102 @@ async function main(): Promise<void> {
   const listMine = (token?: string) =>
     call("membershipApi", "GET", "/me/memberships", undefined, token);
 
-  await check("a call without a token is rejected as unauthenticated",
+  await check(
+    "a call without a token is rejected as unauthenticated",
     async () => {
       const {status, body} = await listMine();
-      expectEqual([status, body.error?.code], [401, "unauthenticated"],
-        "status");
-    });
+      expectEqual(
+        [status, body.error?.code],
+        [401, "unauthenticated"],
+        "status",
+      );
+    },
+  );
 
   await check("GET /me/memberships answers for a seed user", async () => {
     const {status, body} = await listMine(tokenA);
     expectEqual(status, 200, "status");
     const mine = body.memberships.find(
-      (m: {tenantId: string}) => m.tenantId === "tenant-a");
-    expectEqual([mine?.role, mine?.tenantName], ["owner", "Escuela A (seed)"],
-      "tenant-a membership");
+      (m: {tenantId: string}) => m.tenantId === "tenant-a",
+    );
+    expectEqual(
+      [mine?.role, mine?.tenantName],
+      ["owner", "Escuela A (seed)"],
+      "tenant-a membership",
+    );
   });
 
   await check("a tenant-b user does not see tenant-a", async () => {
     const {body} = await listMine(tokenB);
     expectEqual(
       body.memberships.map((m: {tenantId: string}) => m.tenantId),
-      ["tenant-b"], "visible tenants");
+      ["tenant-b"],
+      "visible tenants",
+    );
   });
 
   await check("a tenant-b owner cannot change roles in tenant-a", async () => {
     const {status, body} = await changeRole(
-      tokenB, coordinatorA.uid, "teacher");
-    expectEqual([status, body.error?.code], [403, "permission_denied"],
-      "status");
+      tokenB,
+      coordinatorA.uid,
+      "teacher",
+    );
+    expectEqual(
+      [status, body.error?.code],
+      [403, "permission_denied"],
+      "status",
+    );
   });
 
   await check("a role change leaves its entry in the audit log", async () => {
-    const membershipRef =
-      db.doc(`memberships/${coordinatorA.uid}_tenant-a`);
+    const membershipRef = db.doc(`memberships/${coordinatorA.uid}_tenant-a`);
     const before = (await membershipRef.get()).data()?.role;
-    expectEqual(before, "coordinator",
-      "baseline role (run the seed to restore it)");
+    expectEqual(
+      before,
+      "coordinator",
+      "baseline role (run the seed to restore it)",
+    );
 
     const reason = `smoke-${Date.now()}`;
     try {
       const {status, body} = await changeRole(
-        tokenA, coordinatorA.uid, "teacher", reason);
+        tokenA,
+        coordinatorA.uid,
+        "teacher",
+        reason,
+      );
       expectEqual([status, body.role], [200, "teacher"], "response");
 
-      const entries = await db.collection("tenants/tenant-a/auditLog")
-        .where("reason", "==", reason).get();
+      const entries = await db
+        .collection("tenants/tenant-a/auditLog")
+        .where("reason", "==", reason)
+        .get();
       expectEqual(entries.size, 1, "audit entries for this change");
       const entry = entries.docs[0].data();
       expectEqual(
-        [entry.before?.role, entry.after?.role, entry.actorUid,
-          entry.at !== undefined],
+        [
+          entry.before?.role,
+          entry.after?.role,
+          entry.actorUid,
+          entry.at !== undefined,
+        ],
         ["coordinator", "teacher", ownerA.uid, true],
         "audit entry",
       );
     } finally {
       // Put the baseline back (this adds a second, honest audit entry).
       await changeRole(
-        tokenA, coordinatorA.uid, "coordinator", `${reason}-restore`);
+        tokenA,
+        coordinatorA.uid,
+        "coordinator",
+        `${reason}-restore`,
+      );
     }
-    expectEqual((await membershipRef.get()).data()?.role, "coordinator",
-      "role after restore");
+    expectEqual(
+      (await membershipRef.get()).data()?.role,
+      "coordinator",
+      "role after restore",
+    );
   });
 
   // Spec 02: organization structure.
@@ -183,8 +235,13 @@ async function main(): Promise<void> {
   const idsOf = (items: Dto[]) => items.map((i) => i.id).sort();
   const sorted = (items: string[]) => [...items].sort();
   const structureOf = async (token: string, query = "") =>
-    call("structureApi", "GET", `/tenants/tenant-a/structure${query}`,
-      undefined, token);
+    call(
+      "structureApi",
+      "GET",
+      `/tenants/tenant-a/structure${query}`,
+      undefined,
+      token,
+    );
   const saveVenue = (token: string, data: object) =>
     call("structureApi", "POST", "/tenants/tenant-a/venues", data, token);
 
@@ -192,7 +249,8 @@ async function main(): Promise<void> {
   const guardianA = userOf("guardian", "tenant-a");
   const coordinatorVenueId = coordinatorA.scope.venueIds[0];
   const teacherGroup = SEED_GROUPS.find(
-    (g) => g.id === teacherA.scope.groupIds[0])!;
+    (g) => g.id === teacherA.scope.groupIds[0],
+  )!;
   const seedIds = (items: {id: string; tenantId: string}[]) =>
     items.filter((i) => i.tenantId === "tenant-a").map((i) => i.id);
 
@@ -210,27 +268,39 @@ async function main(): Promise<void> {
     }
   });
 
-  await check("the seed coordinator sees only their venue and its groups",
+  await check(
+    "the seed coordinator sees only their venue and its groups",
     async () => {
       const token = await signIn(coordinatorA);
       const {status, body} = await structureOf(token);
       expectEqual(status, 200, "status");
       expectEqual(idsOf(body.venues), [coordinatorVenueId], "venues");
       const groups: {id: string; venueId: string}[] = body.groups;
-      expectEqual(groups.every((g) => g.venueId === coordinatorVenueId), true,
-        "every group belongs to the coordinator's venue");
-      const expected = SEED_GROUPS
-        .filter((g) => g.venueId === coordinatorVenueId).map((g) => g.id);
       expectEqual(
-        expected.filter((id) => !idsOf(groups).includes(id)), [],
-        "seeded groups of the coordinator's venue");
+        groups.every((g) => g.venueId === coordinatorVenueId),
+        true,
+        "every group belongs to the coordinator's venue",
+      );
+      const expected = SEED_GROUPS.filter(
+        (g) => g.venueId === coordinatorVenueId,
+      ).map((g) => g.id);
       expectEqual(
-        seedIds(SEED_CATEGORIES)
-          .filter((id) => !idsOf(body.categories).includes(id)),
-        [], "seeded categories");
-    });
+        expected.filter((id) => !idsOf(groups).includes(id)),
+        [],
+        "seeded groups of the coordinator's venue",
+      );
+      expectEqual(
+        seedIds(SEED_CATEGORIES).filter(
+          (id) => !idsOf(body.categories).includes(id),
+        ),
+        [],
+        "seeded categories",
+      );
+    },
+  );
 
-  await check("the seed teacher sees only their group, venue and category",
+  await check(
+    "the seed teacher sees only their group, venue and category",
     async () => {
       const token = await signIn(teacherA);
       const {status, body} = await structureOf(token);
@@ -238,70 +308,116 @@ async function main(): Promise<void> {
       expectEqual(idsOf(body.groups), [teacherGroup.id], "groups");
       expectEqual(idsOf(body.venues), [teacherGroup.venueId], "venues");
       expectEqual(
-        idsOf(body.categories), [teacherGroup.categoryId], "categories");
-    });
+        idsOf(body.categories),
+        [teacherGroup.categoryId],
+        "categories",
+      );
+    },
+  );
 
   await check("a guardian cannot read the structure", async () => {
     const token = await signIn(guardianA);
     const {status, body} = await structureOf(token);
-    expectEqual([status, body.error?.code], [403, "permission_denied"],
-      "status");
+    expectEqual(
+      [status, body.error?.code],
+      [403, "permission_denied"],
+      "status",
+    );
   });
 
-  await check("a tenant-b owner cannot read or write tenant-a structure",
+  await check(
+    "a tenant-b owner cannot read or write tenant-a structure",
     async () => {
       const read = await structureOf(tokenB);
-      expectEqual([read.status, read.body.error?.code],
-        [403, "permission_denied"], "read");
+      expectEqual(
+        [read.status, read.body.error?.code],
+        [403, "permission_denied"],
+        "read",
+      );
       const write = await saveVenue(tokenB, {name: "Intruso", address: "x"});
-      expectEqual([write.status, write.body.error?.code],
-        [403, "permission_denied"], "write");
-    });
+      expectEqual(
+        [write.status, write.body.error?.code],
+        [403, "permission_denied"],
+        "write",
+      );
+    },
+  );
 
   await check("a non-owner cannot write structure", async () => {
     const token = await signIn(coordinatorA);
-    const {status, body} = await saveVenue(
-      token, {name: "Sin permiso", address: "x"});
-    expectEqual([status, body.error?.code], [403, "permission_denied"],
-      "status");
+    const {status, body} = await saveVenue(token, {
+      name: "Sin permiso",
+      address: "x",
+    });
+    expectEqual(
+      [status, body.error?.code],
+      [403, "permission_denied"],
+      "status",
+    );
   });
 
-  await check("the owner creates and closes a venue, leaving its audit trail",
+  await check(
+    "the owner creates and closes a venue, leaving its audit trail",
     async () => {
       const name = `Smoke ${Date.now()}`;
-      const created = await saveVenue(
-        tokenA, {name, address: "Calle de prueba 1"});
+      const created = await saveVenue(tokenA, {
+        name,
+        address: "Calle de prueba 1",
+      });
       expectEqual(created.status, 201, "create status");
       const venueId: string = created.body.venueId;
 
-      const closed = await call("structureApi", "PATCH",
+      const closed = await call(
+        "structureApi",
+        "PATCH",
         `/tenants/tenant-a/venues/${venueId}/status`,
-        {status: "closed", reason: "smoke"}, tokenA);
-      expectEqual([closed.status, closed.body.status],
-        [200, "closed"], "close response");
+        {status: "closed", reason: "smoke"},
+        tokenA,
+      );
+      expectEqual(
+        [closed.status, closed.body.status],
+        [200, "closed"],
+        "close response",
+      );
 
-      const venue = (await db.doc(`tenants/tenant-a/venues/${venueId}`).get());
+      const venue = await db.doc(`tenants/tenant-a/venues/${venueId}`).get();
       expectEqual(venue.data()?.status, "closed", "venue stays, closed");
 
-      const entries = await db.collection("tenants/tenant-a/auditLog")
-        .where("target.id", "==", venueId).get();
+      const entries = await db
+        .collection("tenants/tenant-a/auditLog")
+        .where("target.id", "==", venueId)
+        .get();
       expectEqual(
         sorted(entries.docs.map((d) => d.data().action as string)),
-        ["venue.closed", "venue.created"], "audit actions");
+        ["venue.closed", "venue.created"],
+        "audit actions",
+      );
       expectEqual(
-        entries.docs.every((d) => d.data().actorUid === ownerA.uid), true,
-        "audit actor");
+        entries.docs.every((d) => d.data().actorUid === ownerA.uid),
+        true,
+        "audit actor",
+      );
 
       const hidden = await structureOf(tokenA);
-      expectEqual(idsOf(hidden.body.venues).includes(venueId), false,
-        "closed venue hidden by default");
+      expectEqual(
+        idsOf(hidden.body.venues).includes(venueId),
+        false,
+        "closed venue hidden by default",
+      );
       const shown = await structureOf(tokenA, "?includeClosed=true");
-      expectEqual(idsOf(shown.body.venues).includes(venueId), true,
-        "closed venue returned with includeClosed");
-    });
+      expectEqual(
+        idsOf(shown.body.venues).includes(venueId),
+        true,
+        "closed venue returned with includeClosed",
+      );
+    },
+  );
 
-  console.log(failures === 0 ? "\nAll smoke checks passed." :
-    `\n${failures} smoke check(s) FAILED.`);
+  console.log(
+    failures === 0
+      ? "\nAll smoke checks passed."
+      : `\n${failures} smoke check(s) FAILED.`,
+  );
   process.exit(failures === 0 ? 0 : 1);
 }
 

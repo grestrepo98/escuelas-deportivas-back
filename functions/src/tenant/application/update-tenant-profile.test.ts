@@ -1,21 +1,13 @@
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  UpdateTenantProfile,
-} from "./update-tenant-profile.js";
+import {UpdateTenantProfile} from "./update-tenant-profile.js";
 import {DomainError} from "../../shared/domain/errors.js";
 import type {Membership} from "../../membership/domain/membership.js";
 import type {Role} from "../../membership/domain/role.js";
 import type {Tenant} from "../domain/tenant.js";
 import {FakeClock} from "../../shared/application/testing/fake-clock.js";
-import {
-  InMemoryAuditLogWriter,
-} from "../../audit/application/testing/in-memory-audit-log-writer.js";
-import {
-  InMemoryMembershipRepository,
-} from "../../membership/application/testing/in-memory-membership-repository.js";
-import {
-  InMemoryUnitOfWork,
-} from "../../shared/application/testing/in-memory-unit-of-work.js";
+import {InMemoryAuditLogWriter} from "../../audit/application/testing/in-memory-audit-log-writer.js";
+import {InMemoryMembershipRepository} from "../../membership/application/testing/in-memory-membership-repository.js";
+import {InMemoryUnitOfWork} from "../../shared/application/testing/in-memory-unit-of-work.js";
 
 const T0 = new Date("2026-10-01T00:00:00Z");
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -80,30 +72,29 @@ const input = (overrides = {}) => ({
 });
 
 describe("UpdateTenantProfile", () => {
-  it("updates the profile, keeps status and createdAt, and audits it",
-    async () => {
-      const result = await useCase.execute(input());
-      expect(result).toEqual({tenantId: "tenant-a"});
-      const saved = (await uow.tenants.get("tenant-a"))!;
-      expect(saved).toMatchObject({
-        name: "Argentinos Juniors Cali",
-        idrdRegistration: "IDRD-123",
-        contact: {email: "info@aj.co", phone: "3001234567"},
-        status: "active",
-        createdAt: T0,
-        updatedAt: NOW,
-      });
-      expect(auditLog.entries).toHaveLength(1);
-      expect(auditLog.entries[0]).toMatchObject({
-        tenantId: "tenant-a",
-        actorUid: "owner-1",
-        actorRole: "owner",
-        action: "tenant.updated",
-        target: {type: "tenant", id: "tenant-a"},
-        before: {name: "Argentinos Juniors", contact: {email: "old@aj.co"}},
-        after: {name: "Argentinos Juniors Cali", idrdRegistration: "IDRD-123"},
-      });
+  it("updates the profile, keeps status and createdAt, and audits it", async () => {
+    const result = await useCase.execute(input());
+    expect(result).toEqual({tenantId: "tenant-a"});
+    const saved = (await uow.tenants.get("tenant-a"))!;
+    expect(saved).toMatchObject({
+      name: "Argentinos Juniors Cali",
+      idrdRegistration: "IDRD-123",
+      contact: {email: "info@aj.co", phone: "3001234567"},
+      status: "active",
+      createdAt: T0,
+      updatedAt: NOW,
     });
+    expect(auditLog.entries).toHaveLength(1);
+    expect(auditLog.entries[0]).toMatchObject({
+      tenantId: "tenant-a",
+      actorUid: "owner-1",
+      actorRole: "owner",
+      action: "tenant.updated",
+      target: {type: "tenant", id: "tenant-a"},
+      before: {name: "Argentinos Juniors", contact: {email: "old@aj.co"}},
+      after: {name: "Argentinos Juniors Cali", idrdRegistration: "IDRD-123"},
+    });
+  });
 
   it("drops optional fields that are blank or absent", async () => {
     await uow.tenants.save(tenant({idrdRegistration: "OLD"}));
@@ -115,8 +106,13 @@ describe("UpdateTenantProfile", () => {
     expect(saved.contact).toEqual({});
   });
 
-  it.each<Role>(["coordinator", "accountant", "teacher", "guardian",
-    "adultPlayer"])("rejects %s", async (role) => {
+  it.each<Role>([
+    "coordinator",
+    "accountant",
+    "teacher",
+    "guardian",
+    "adultPlayer",
+  ])("rejects %s", async (role) => {
     await memberships.save(member("u-1", role));
     const code = await rejection(useCase.execute(input({actorUid: "u-1"})));
     expect(code).toBe("permission_denied");
@@ -125,24 +121,24 @@ describe("UpdateTenantProfile", () => {
 
   it("rejects an owner of another tenant", async () => {
     await memberships.save(member("owner-b", "owner", {tenantId: "tenant-b"}));
-    const code = await rejection(
-      useCase.execute(input({actorUid: "owner-b"})),
-    );
+    const code = await rejection(useCase.execute(input({actorUid: "owner-b"})));
     expect(code).toBe("permission_denied");
   });
 
   it("rejects a blank name", async () => {
-    expect(await rejection(useCase.execute(input({name: "  "}))))
-      .toBe("invalid_argument");
-    expect((await uow.tenants.get("tenant-a"))!.name)
-      .toBe("Argentinos Juniors");
+    expect(await rejection(useCase.execute(input({name: "  "})))).toBe(
+      "invalid_argument",
+    );
+    expect((await uow.tenants.get("tenant-a"))!.name).toBe(
+      "Argentinos Juniors",
+    );
   });
 
   it("rejects a tenant document that does not exist", async () => {
     await memberships.save(member("owner-c", "owner", {tenantId: "tenant-c"}));
-    const code = await rejection(useCase.execute(
-      input({tenantId: "tenant-c", actorUid: "owner-c"}),
-    ));
+    const code = await rejection(
+      useCase.execute(input({tenantId: "tenant-c", actorUid: "owner-c"})),
+    );
     expect(code).toBe("not_found");
   });
 });

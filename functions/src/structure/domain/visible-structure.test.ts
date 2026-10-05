@@ -62,10 +62,9 @@ const member = (role: Role, scope: Partial<Scope> = {}): Membership => ({
 const ids = (items: {id: string}[]) => items.map((i) => i.id).sort();
 
 describe("visibleStructure", () => {
-  it.each<Role>(["owner", "accountant"])("shows everything to %s",
-    (role) => {
-      expect(visibleStructure(member(role), structure)).toEqual(structure);
-    });
+  it.each<Role>(["owner", "accountant"])("shows everything to %s", (role) => {
+    expect(visibleStructure(member(role), structure)).toEqual(structure);
+  });
 
   it("ignores scope for owner and accountant", () => {
     const result = visibleStructure(
@@ -75,27 +74,25 @@ describe("visibleStructure", () => {
     expect(result).toEqual(structure);
   });
 
-  it("shows a coordinator their venues, those groups and all categories",
-    () => {
-      const result = visibleStructure(
-        member("coordinator", {venueIds: ["v1"]}),
-        structure,
-      );
-      expect(ids(result.venues)).toEqual(["v1"]);
-      expect(ids(result.groups)).toEqual(["g1", "g2"]);
-      expect(ids(result.categories)).toEqual(["c1", "c2", "c3"]);
-    });
+  it("shows a coordinator their venues, those groups and all categories", () => {
+    const result = visibleStructure(
+      member("coordinator", {venueIds: ["v1"]}),
+      structure,
+    );
+    expect(ids(result.venues)).toEqual(["v1"]);
+    expect(ids(result.groups)).toEqual(["g1", "g2"]);
+    expect(ids(result.categories)).toEqual(["c1", "c2", "c3"]);
+  });
 
-  it("shows a teacher their groups, those venues and those categories",
-    () => {
-      const result = visibleStructure(
-        member("teacher", {groupIds: ["g1", "g3"]}),
-        structure,
-      );
-      expect(ids(result.groups)).toEqual(["g1", "g3"]);
-      expect(ids(result.venues)).toEqual(["v1", "v2"]);
-      expect(ids(result.categories)).toEqual(["c1"]);
-    });
+  it("shows a teacher their groups, those venues and those categories", () => {
+    const result = visibleStructure(
+      member("teacher", {groupIds: ["g1", "g3"]}),
+      structure,
+    );
+    expect(ids(result.groups)).toEqual(["g1", "g3"]);
+    expect(ids(result.venues)).toEqual(["v1", "v2"]);
+    expect(ids(result.categories)).toEqual(["c1"]);
+  });
 
   it("ignores venueIds for a teacher and groupIds for a coordinator", () => {
     const teacher = visibleStructure(
@@ -113,13 +110,15 @@ describe("visibleStructure", () => {
   });
 
   it.each<Role>(["coordinator", "teacher"])(
-    "shows nothing to a %s with an empty scope", (role) => {
+    "shows nothing to a %s with an empty scope",
+    (role) => {
       expect(visibleStructure(member(role), structure)).toEqual({
         venues: [],
         categories: [],
         groups: [],
       });
-    });
+    },
+  );
 
   it("skips scope entries that point to missing documents", () => {
     const result = visibleStructure(

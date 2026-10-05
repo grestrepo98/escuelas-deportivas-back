@@ -1,10 +1,6 @@
 import type {AuditLogWriter} from "../../audit/application/audit-log-writer.js";
-import type {
-  MembershipRepository,
-} from "../../membership/application/membership-repository.js";
-import type {
-  TenantRepository,
-} from "../../tenant/application/tenant-repository.js";
+import type {MembershipRepository} from "../../membership/application/membership-repository.js";
+import type {TenantRepository} from "../../tenant/application/tenant-repository.js";
 import type {
   CategoryRepository,
   GroupRepository,

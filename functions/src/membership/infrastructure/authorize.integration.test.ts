@@ -1,12 +1,7 @@
 import type {Membership} from "../domain/membership.js";
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  FirestoreMembershipRepository,
-} from "./firestore/firestore-membership-repository.js";
-import {
-  authorizeTenantMember,
-  requireUid,
-} from "./authorize.js";
+import {FirestoreMembershipRepository} from "./firestore/firestore-membership-repository.js";
+import {authorizeTenantMember, requireUid} from "./authorize.js";
 import {
   clearFirestore,
   testDb,
@@ -57,19 +52,22 @@ describe("authorizeTenantMember", () => {
   });
 
   it("denies a caller with no membership in the tenant", async () => {
-    expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a")))
-      .toBe("permission_denied");
+    expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a"))).toBe(
+      "permission_denied",
+    );
   });
 
   it("denies an inactive membership", async () => {
     await repo.save(membership({status: "inactive"}));
-    expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a")))
-      .toBe("permission_denied");
+    expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a"))).toBe(
+      "permission_denied",
+    );
   });
 
   it("denies a member of another tenant", async () => {
     await repo.save(membership({tenantId: "tenant-b"}));
-    expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a")))
-      .toBe("permission_denied");
+    expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a"))).toBe(
+      "permission_denied",
+    );
   });
 });

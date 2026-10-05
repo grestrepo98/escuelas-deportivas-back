@@ -1,10 +1,6 @@
 import type {RequestHandler} from "express";
-import {
-  UpdateTenantProfile,
-} from "../../../../application/update-tenant-profile.js";
-import {
-  FirestoreUnitOfWork,
-} from "../../../../../shared/infrastructure/firestore-unit-of-work.js";
+import {UpdateTenantProfile} from "../../../../application/update-tenant-profile.js";
+import {FirestoreUnitOfWork} from "../../../../../shared/infrastructure/firestore-unit-of-work.js";
 import {firestore} from "../../../../../shared/infrastructure/admin.js";
 import {
   authorizeTenantMember,
@@ -12,14 +8,13 @@ import {
 } from "../../../../../membership/infrastructure/authorize.js";
 import {deviceOf} from "../../../../../shared/infrastructure/http/device.js";
 import {parseInput} from "../../../../../shared/infrastructure/http/parse.js";
-import {
-  systemClock,
-} from "../../../../../shared/infrastructure/system-clock.js";
+import {systemClock} from "../../../../../shared/infrastructure/system-clock.js";
 import {updateTenantProfileInput, updateTenantProfileOutput} from "./schema.js";
 
-export const updateTenantProfile: RequestHandler<
-  {tenantId: string}
-> = async (req, res) => {
+export const updateTenantProfile: RequestHandler<{tenantId: string}> = async (
+  req,
+  res,
+) => {
   const actorUid = requireUid(res.locals.uid);
   const input = parseInput(updateTenantProfileInput, req.body);
   const {tenantId} = req.params;

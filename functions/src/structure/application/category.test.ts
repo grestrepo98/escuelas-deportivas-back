@@ -1,22 +1,14 @@
 import {beforeEach, describe, expect, it} from "vitest";
 import {SaveCategory} from "./save-category.js";
-import {
-  SetCategoryStatus,
-} from "./set-category-status.js";
+import {SetCategoryStatus} from "./set-category-status.js";
 import {DomainError} from "../../shared/domain/errors.js";
 import type {Membership} from "../../membership/domain/membership.js";
 import type {Role} from "../../membership/domain/role.js";
 import type {Category, Group} from "../domain/structure.js";
 import {FakeClock} from "../../shared/application/testing/fake-clock.js";
-import {
-  InMemoryAuditLogWriter,
-} from "../../audit/application/testing/in-memory-audit-log-writer.js";
-import {
-  InMemoryMembershipRepository,
-} from "../../membership/application/testing/in-memory-membership-repository.js";
-import {
-  InMemoryUnitOfWork,
-} from "../../shared/application/testing/in-memory-unit-of-work.js";
+import {InMemoryAuditLogWriter} from "../../audit/application/testing/in-memory-audit-log-writer.js";
+import {InMemoryMembershipRepository} from "../../membership/application/testing/in-memory-membership-repository.js";
+import {InMemoryUnitOfWork} from "../../shared/application/testing/in-memory-unit-of-work.js";
 
 const T0 = new Date("2026-10-01T00:00:00Z");
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -121,12 +113,18 @@ describe("SaveCategory — create", () => {
     const {categoryId} = await saveCategory.execute(
       create({name: "Avanzados", birthYears: []}),
     );
-    expect((await uow.categories.get("tenant-a", categoryId))!.birthYears)
-      .toEqual([]);
+    expect(
+      (await uow.categories.get("tenant-a", categoryId))!.birthYears,
+    ).toEqual([]);
   });
 
-  it.each<Role>(["coordinator", "accountant", "teacher", "guardian",
-    "adultPlayer"])("rejects %s", async (role) => {
+  it.each<Role>([
+    "coordinator",
+    "accountant",
+    "teacher",
+    "guardian",
+    "adultPlayer",
+  ])("rejects %s", async (role) => {
     await memberships.save(member("u-1", role));
     const code = await rejection(
       saveCategory.execute(create({actorUid: "u-1"})),
@@ -144,11 +142,12 @@ describe("SaveCategory — create", () => {
   });
 
   it("rejects a blank name and non-integer birth years", async () => {
-    expect(await rejection(saveCategory.execute(create({name: " "}))))
-      .toBe("invalid_argument");
-    expect(await rejection(
-      saveCategory.execute(create({birthYears: [2016.5]})),
-    )).toBe("invalid_argument");
+    expect(await rejection(saveCategory.execute(create({name: " "})))).toBe(
+      "invalid_argument",
+    );
+    expect(
+      await rejection(saveCategory.execute(create({birthYears: [2016.5]}))),
+    ).toBe("invalid_argument");
   });
 
   it("rejects a name used by an active category, ignoring case", async () => {
@@ -160,12 +159,11 @@ describe("SaveCategory — create", () => {
     expect(auditLog.entries).toHaveLength(0);
   });
 
-  it("allows reusing a closed name and the same name in another tenant",
-    async () => {
-      await uow.categories.save(category({status: "closed"}));
-      await uow.categories.save(category({id: "c-b", tenantId: "tenant-b"}));
-      await expect(saveCategory.execute(create())).resolves.toBeDefined();
-    });
+  it("allows reusing a closed name and the same name in another tenant", async () => {
+    await uow.categories.save(category({status: "closed"}));
+    await uow.categories.save(category({id: "c-b", tenantId: "tenant-b"}));
+    await expect(saveCategory.execute(create())).resolves.toBeDefined();
+  });
 });
 
 describe("SaveCategory — update", () => {
@@ -174,11 +172,13 @@ describe("SaveCategory — update", () => {
   });
 
   it("updates fields, keeps createdAt and records before/after", async () => {
-    const result = await saveCategory.execute(create({
-      categoryId: "cat-x",
-      name: "Sub-12",
-      birthYears: [2014],
-    }));
+    const result = await saveCategory.execute(
+      create({
+        categoryId: "cat-x",
+        name: "Sub-12",
+        birthYears: [2014],
+      }),
+    );
     expect(result).toEqual({categoryId: "cat-x"});
     const saved = (await uow.categories.get("tenant-a", "cat-x"))!;
     expect(saved).toMatchObject({
@@ -195,35 +195,34 @@ describe("SaveCategory — update", () => {
   });
 
   it("allows keeping its own name", async () => {
-    await expect(saveCategory.execute(
-      create({categoryId: "cat-x", birthYears: [2015]}),
-    )).resolves.toEqual({categoryId: "cat-x"});
+    await expect(
+      saveCategory.execute(create({categoryId: "cat-x", birthYears: [2015]})),
+    ).resolves.toEqual({categoryId: "cat-x"});
   });
 
   it("rejects a name used by another active category", async () => {
     await uow.categories.save(category({id: "cat-y", name: "Sub-12"}));
-    const code = await rejection(saveCategory.execute(
-      create({categoryId: "cat-x", name: "sub-12"}),
-    ));
+    const code = await rejection(
+      saveCategory.execute(create({categoryId: "cat-x", name: "sub-12"})),
+    );
     expect(code).toBe("failed_precondition");
   });
 
-  it("rejects a category that does not exist or is of another tenant",
-    async () => {
-      await uow.categories.save(category({id: "c-b", tenantId: "tenant-b"}));
-      expect(await rejection(
-        saveCategory.execute(create({categoryId: "nope"})),
-      )).toBe("not_found");
-      expect(await rejection(
-        saveCategory.execute(create({categoryId: "c-b"})),
-      )).toBe("not_found");
-    });
+  it("rejects a category that does not exist or is of another tenant", async () => {
+    await uow.categories.save(category({id: "c-b", tenantId: "tenant-b"}));
+    expect(
+      await rejection(saveCategory.execute(create({categoryId: "nope"}))),
+    ).toBe("not_found");
+    expect(
+      await rejection(saveCategory.execute(create({categoryId: "c-b"}))),
+    ).toBe("not_found");
+  });
 
   it("rejects non-owners", async () => {
     await memberships.save(member("c1", "coordinator"));
-    const code = await rejection(saveCategory.execute(
-      create({categoryId: "cat-x", actorUid: "c1"}),
-    ));
+    const code = await rejection(
+      saveCategory.execute(create({categoryId: "cat-x", actorUid: "c1"})),
+    );
     expect(code).toBe("permission_denied");
   });
 });
@@ -258,15 +257,15 @@ describe("SetCategoryStatus", () => {
     });
   });
 
-  it("rejects closing a category with active groups, changing nothing",
-    async () => {
-      await uow.groups.save(group());
-      const code = await rejection(setStatus.execute(close()));
-      expect(code).toBe("failed_precondition");
-      expect((await uow.categories.get("tenant-a", "cat-x"))!.status)
-        .toBe("active");
-      expect(auditLog.entries).toHaveLength(0);
-    });
+  it("rejects closing a category with active groups, changing nothing", async () => {
+    await uow.groups.save(group());
+    const code = await rejection(setStatus.execute(close()));
+    expect(code).toBe("failed_precondition");
+    expect((await uow.categories.get("tenant-a", "cat-x"))!.status).toBe(
+      "active",
+    );
+    expect(auditLog.entries).toHaveLength(0);
+  });
 
   it("reopens a closed category and audits it", async () => {
     await uow.categories.save(category({status: "closed"}));
@@ -284,8 +283,9 @@ describe("SetCategoryStatus", () => {
     await uow.categories.save(category({id: "cat-y"}));
     const code = await rejection(setStatus.execute(close({status: "active"})));
     expect(code).toBe("failed_precondition");
-    expect((await uow.categories.get("tenant-a", "cat-x"))!.status)
-      .toBe("closed");
+    expect((await uow.categories.get("tenant-a", "cat-x"))!.status).toBe(
+      "closed",
+    );
   });
 
   it("rejects a status that is already set", async () => {
@@ -300,8 +300,13 @@ describe("SetCategoryStatus", () => {
     expect(code).toBe("not_found");
   });
 
-  it.each<Role>(["coordinator", "accountant", "teacher", "guardian",
-    "adultPlayer"])("rejects %s", async (role) => {
+  it.each<Role>([
+    "coordinator",
+    "accountant",
+    "teacher",
+    "guardian",
+    "adultPlayer",
+  ])("rejects %s", async (role) => {
     await memberships.save(member("u-1", role));
     const code = await rejection(setStatus.execute(close({actorUid: "u-1"})));
     expect(code).toBe("permission_denied");

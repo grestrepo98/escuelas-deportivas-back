@@ -2,9 +2,7 @@ import {ROLES, type Role} from "../../../membership/domain/role.js";
 import {type Membership} from "../../../membership/domain/membership.js";
 import {Timestamp} from "firebase-admin/firestore";
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  FirestoreMembershipRepository,
-} from "../../../membership/infrastructure/firestore/firestore-membership-repository.js";
+import {FirestoreMembershipRepository} from "../../../membership/infrastructure/firestore/firestore-membership-repository.js";
 import {
   callApi,
   clearAuth,
@@ -40,8 +38,9 @@ const membership = (
 const tenantDoc = async (id = "tenant-a") =>
   (await db.doc(`tenants/${id}`).get()).data();
 const audit = async (tenantId = "tenant-a") =>
-  (await db.collection(`tenants/${tenantId}/auditLog`).get())
-    .docs.map((d) => d.data());
+  (await db.collection(`tenants/${tenantId}/auditLog`).get()).docs.map((d) =>
+    d.data(),
+  );
 
 let owner: TestUser;
 let ownerB: TestUser;
@@ -52,7 +51,12 @@ const update = (
   tenantId = "tenant-a",
 ) =>
   callApi(
-    "tenantApi", "PUT", `/tenants/${tenantId}/profile`, data, caller?.idToken);
+    "tenantApi",
+    "PUT",
+    `/tenants/${tenantId}/profile`,
+    data,
+    caller?.idToken,
+  );
 
 const validInput = (overrides = {}) => ({
   name: "Escuela Nueva",
@@ -83,8 +87,9 @@ describe("PUT /tenants/:tenantId/profile — success", () => {
   it("updates the profile and writes exactly one audit entry", async () => {
     const {status, body} = await update(owner, validInput());
     expect(status).toBe(200);
-    expect(updateTenantProfileOutput.parse(body))
-      .toEqual({tenantId: "tenant-a"});
+    expect(updateTenantProfileOutput.parse(body)).toEqual({
+      tenantId: "tenant-a",
+    });
 
     expect(await tenantDoc()).toMatchObject({
       name: "Escuela Nueva",
@@ -106,10 +111,13 @@ describe("PUT /tenants/:tenantId/profile — success", () => {
   });
 
   it("stores blank optional text as absent", async () => {
-    const {status} = await update(owner, validInput({
-      idrdRegistration: "  ",
-      contact: {email: "", phone: " "},
-    }));
+    const {status} = await update(
+      owner,
+      validInput({
+        idrdRegistration: "  ",
+        contact: {email: "", phone: " "},
+      }),
+    );
     expect(status).toBe(200);
     const data = await tenantDoc();
     expect(data).not.toHaveProperty("idrdRegistration");
@@ -147,15 +155,15 @@ describe("PUT /tenants/:tenantId/profile — only owners", () => {
     expect(await audit()).toHaveLength(0);
   });
 
-  it("denies an owner right after being deactivated, with the same token",
-    async () => {
-      await memberships.save(
-        membership(owner.uid, "tenant-a", "owner", {status: "inactive"}));
-      const {status, body} = await update(owner, validInput());
-      expect(status).toBe(403);
-      expect(body.error.code).toBe("permission_denied");
-      expect((await tenantDoc())?.name).toBe("Escuela tenant-a");
-    });
+  it("denies an owner right after being deactivated, with the same token", async () => {
+    await memberships.save(
+      membership(owner.uid, "tenant-a", "owner", {status: "inactive"}),
+    );
+    const {status, body} = await update(owner, validInput());
+    expect(status).toBe(403);
+    expect(body.error.code).toBe("permission_denied");
+    expect((await tenantDoc())?.name).toBe("Escuela tenant-a");
+  });
 });
 
 describe("PUT /tenants/:tenantId/profile — business rules", () => {
@@ -189,7 +197,12 @@ describe("PUT /tenants/:tenantId/profile — input validation", () => {
 describe("tenantApi — shared behavior", () => {
   it("answers 404 on an unknown route", async () => {
     const {status, body} = await callApi(
-      "tenantApi", "GET", "/nowhere", undefined, owner.idToken);
+      "tenantApi",
+      "GET",
+      "/nowhere",
+      undefined,
+      owner.idToken,
+    );
     expect(status).toBe(404);
     expect(body.error.code).toBe("not_found");
   });

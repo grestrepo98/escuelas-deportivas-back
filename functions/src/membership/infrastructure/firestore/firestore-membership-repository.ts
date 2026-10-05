@@ -1,10 +1,5 @@
-import {
-  membershipId,
-  type Membership,
-} from "../../domain/membership.js";
-import {
-  type MembershipRepository,
-} from "../../application/membership-repository.js";
+import {membershipId, type Membership} from "../../domain/membership.js";
+import {type MembershipRepository} from "../../application/membership-repository.js";
 import {type Role} from "../../domain/role.js";
 import type {Firestore, Transaction} from "firebase-admin/firestore";
 import {fromMembershipDoc, toMembershipDoc} from "./membership-mapper.js";
@@ -35,7 +30,8 @@ export class FirestoreMembershipRepository implements MembershipRepository {
   }
 
   async countActiveByRole(tenantId: string, role: Role): Promise<number> {
-    const query = this.db.collection("memberships")
+    const query = this.db
+      .collection("memberships")
       .where("tenantId", "==", tenantId)
       .where("role", "==", role)
       .where("status", "==", "active");

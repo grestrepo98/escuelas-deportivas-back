@@ -22,10 +22,12 @@ export function isNameTaken(
   excludeId?: string,
 ): boolean {
   const wanted = name.trim().toLowerCase();
-  return items.some((item) =>
-    item.status === "active" &&
-    item.id !== excludeId &&
-    item.name.trim().toLowerCase() === wanted);
+  return items.some(
+    (item) =>
+      item.status === "active" &&
+      item.id !== excludeId &&
+      item.name.trim().toLowerCase() === wanted,
+  );
 }
 
 export function validateBirthYears(years: number[]): number[] {
@@ -46,8 +48,11 @@ function validateTime(value: string): void {
 // "HH:mm" is zero-padded, so string comparison orders it correctly.
 export function validateSchedule(schedule: ScheduleSlot[]): ScheduleSlot[] {
   for (const slot of schedule) {
-    if (!Number.isInteger(slot.weekday) || slot.weekday < 1 ||
-      slot.weekday > 7) {
+    if (
+      !Number.isInteger(slot.weekday) ||
+      slot.weekday < 1 ||
+      slot.weekday > 7
+    ) {
       throw invalid(`weekday must be 1-7: ${slot.weekday}`);
     }
     validateTime(slot.start);

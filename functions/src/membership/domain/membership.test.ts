@@ -28,13 +28,15 @@ describe("isActiveMembershipOf", () => {
   });
 
   it("is false for an inactive membership", () => {
-    expect(isActiveMembershipOf(build({status: "inactive"}), "tenant-a"))
-      .toBe(false);
+    expect(isActiveMembershipOf(build({status: "inactive"}), "tenant-a")).toBe(
+      false,
+    );
   });
 
   it("is false when the membership belongs to another tenant", () => {
-    expect(isActiveMembershipOf(build({tenantId: "tenant-b"}), "tenant-a"))
-      .toBe(false);
+    expect(
+      isActiveMembershipOf(build({tenantId: "tenant-b"}), "tenant-a"),
+    ).toBe(false);
   });
 
   it.each([[null], [undefined]])("is false when membership is %j", (m) => {

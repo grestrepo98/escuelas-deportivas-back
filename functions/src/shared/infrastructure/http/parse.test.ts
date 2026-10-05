@@ -3,10 +3,12 @@ import {z} from "zod";
 import {DomainError} from "../../domain/errors.js";
 import {parseInput} from "./parse.js";
 
-const schema = z.object({
-  name: z.string().min(1),
-  nested: z.object({email: z.email()}).optional(),
-}).strict();
+const schema = z
+  .object({
+    name: z.string().min(1),
+    nested: z.object({email: z.email()}).optional(),
+  })
+  .strict();
 
 function failure(data: unknown): DomainError {
   try {
@@ -30,13 +32,13 @@ describe("parseInput", () => {
   });
 
   it("names nested fields with a dotted path", () => {
-    expect(failure({name: "a", nested: {email: "nope"}}).message)
-      .toBe("Invalid input: nested.email");
+    expect(failure({name: "a", nested: {email: "nope"}}).message).toBe(
+      "Invalid input: nested.email",
+    );
   });
 
   it("rejects extra fields", () => {
-    expect(failure({name: "a", role: "owner"}).message)
-      .toContain("(payload)");
+    expect(failure({name: "a", role: "owner"}).message).toContain("(payload)");
   });
 
   it("never echoes the submitted values", () => {

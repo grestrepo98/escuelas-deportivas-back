@@ -51,26 +51,30 @@ describe("validateSchedule", () => {
 
   it("rejects end equal to start", () => {
     invalidArgument(() =>
-      validateSchedule([{weekday: 2, start: "17:00", end: "17:00"}]));
+      validateSchedule([{weekday: 2, start: "17:00", end: "17:00"}]),
+    );
   });
 
   it("rejects end before start", () => {
     invalidArgument(() =>
-      validateSchedule([{weekday: 2, start: "18:00", end: "17:00"}]));
+      validateSchedule([{weekday: 2, start: "18:00", end: "17:00"}]),
+    );
   });
 
   it.each([[0], [8], [1.5], [-1]])("rejects weekday %j", (weekday) => {
     invalidArgument(() =>
       validateSchedule([
         {weekday: weekday as never, start: "17:00", end: "18:00"},
-      ]));
+      ]),
+    );
   });
 
   it.each([["5pm"], ["24:00"], ["17:60"], ["7:00"], ["17:00:00"]])(
     "rejects malformed time %j",
     (start) => {
       invalidArgument(() =>
-        validateSchedule([{weekday: 2, start, end: "23:59"}]));
+        validateSchedule([{weekday: 2, start, end: "23:59"}]),
+      );
     },
   );
 });

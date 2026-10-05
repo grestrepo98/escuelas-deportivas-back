@@ -43,13 +43,14 @@ describe("errorHandler", () => {
   it("hides unexpected errors behind a generic 500", async () => {
     const result = await call(new Error("secret db detail"));
     expect(result.status).toBe(500);
-    expect(result.body).toEqual(
-      {error: {code: "internal", message: "Internal error"}});
+    expect(result.body).toEqual({
+      error: {code: "internal", message: "Internal error"},
+    });
     expect(JSON.stringify(result.body)).not.toContain("secret");
   });
 
   it("answers 400 to a malformed JSON body without echoing it", async () => {
-    const result = await call(new Error("unused"), {body: "{\"secret\": "});
+    const result = await call(new Error("unused"), {body: '{"secret": '});
     expect(result.status).toBe(400);
     expect(result.body.error.code).toBe("invalid_argument");
     expect(JSON.stringify(result.body)).not.toContain("secret");

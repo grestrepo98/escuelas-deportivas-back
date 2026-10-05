@@ -48,17 +48,19 @@ export class SaveGroup {
         const schedule = validateSchedule(input.schedule);
         const now = this.clock.now();
 
-        const existing = input.groupId ?
-          await groups.get(tenantId, input.groupId) :
-          null;
+        const existing = input.groupId
+          ? await groups.get(tenantId, input.groupId)
+          : null;
         if (input.groupId && !existing) {
           throw new DomainError("not_found", "Group not found");
         }
 
         let venueId: string;
         if (existing) {
-          if (input.venueId !== undefined &&
-            input.venueId !== existing.venueId) {
+          if (
+            input.venueId !== undefined &&
+            input.venueId !== existing.venueId
+          ) {
             throw new DomainError(
               "failed_precondition",
               "A group cannot change venue: close it and create another",
@@ -82,8 +84,9 @@ export class SaveGroup {
 
         // A closed group does not hold its name.
         if (!existing || existing.status === "active") {
-          const inVenue = (await groups.listByTenant(tenantId))
-            .filter((g) => g.venueId === venueId);
+          const inVenue = (await groups.listByTenant(tenantId)).filter(
+            (g) => g.venueId === venueId,
+          );
           if (isNameTaken(inVenue, name, existing?.id)) {
             throw new DomainError(
               "failed_precondition",

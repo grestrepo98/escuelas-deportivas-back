@@ -19,35 +19,35 @@ export function visibleStructure(
   const {role, scope} = membership;
 
   switch (role) {
-  case "owner":
-  case "accountant":
-    return structure;
+    case "owner":
+    case "accountant":
+      return structure;
 
-  case "coordinator": {
-    const venueIds = new Set(scope.venueIds);
-    return {
-      venues: structure.venues.filter((v) => venueIds.has(v.id)),
-      categories: venueIds.size === 0 ? [] : structure.categories,
-      groups: structure.groups.filter((g) => venueIds.has(g.venueId)),
-    };
-  }
+    case "coordinator": {
+      const venueIds = new Set(scope.venueIds);
+      return {
+        venues: structure.venues.filter((v) => venueIds.has(v.id)),
+        categories: venueIds.size === 0 ? [] : structure.categories,
+        groups: structure.groups.filter((g) => venueIds.has(g.venueId)),
+      };
+    }
 
-  case "teacher": {
-    const groupIds = new Set(scope.groupIds);
-    const groups = structure.groups.filter((g) => groupIds.has(g.id));
-    const venueIds = new Set(groups.map((g) => g.venueId));
-    const categoryIds = new Set(groups.map((g) => g.categoryId));
-    return {
-      venues: structure.venues.filter((v) => venueIds.has(v.id)),
-      categories: structure.categories.filter((c) => categoryIds.has(c.id)),
-      groups,
-    };
-  }
+    case "teacher": {
+      const groupIds = new Set(scope.groupIds);
+      const groups = structure.groups.filter((g) => groupIds.has(g.id));
+      const venueIds = new Set(groups.map((g) => g.venueId));
+      const categoryIds = new Set(groups.map((g) => g.categoryId));
+      return {
+        venues: structure.venues.filter((v) => venueIds.has(v.id)),
+        categories: structure.categories.filter((c) => categoryIds.has(c.id)),
+        groups,
+      };
+    }
 
-  default:
-    throw new DomainError(
-      "permission_denied",
-      "This role cannot read the organization structure",
-    );
+    default:
+      throw new DomainError(
+        "permission_denied",
+        "This role cannot read the organization structure",
+      );
   }
 }
