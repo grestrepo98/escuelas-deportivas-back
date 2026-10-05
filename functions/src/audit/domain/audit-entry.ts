@@ -2,6 +2,9 @@ import type {Role} from "../../membership/domain/role.js";
 
 export type AuditAction =
   | "membership.role_changed"
+  | "membership.invited"
+  | "membership.status_changed"
+  | "membership.scope_changed"
   | "tenant.updated"
   | "venue.created"
   | "venue.updated"
