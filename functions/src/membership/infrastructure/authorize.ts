@@ -3,18 +3,18 @@ import {
   type Membership,
 } from "../domain/membership.js";
 import type {Firestore} from "firebase-admin/firestore";
-import type {AuthData} from "firebase-functions/tasks";
-import {HttpsError} from "firebase-functions/v2/https";
+import {DomainError} from "../../shared/domain/errors.js";
 import {
   FirestoreMembershipRepository,
 } from "./firestore/firestore-membership-repository.js";
 
-// The uid always comes from the verified session, never from the payload.
-export function requireUid(auth: AuthData | undefined): string {
-  if (!auth) {
-    throw new HttpsError("unauthenticated", "Authentication is required");
+// The uid always comes from the verified token (`res.locals.uid`, set by the
+// authenticate middleware), never from the payload.
+export function requireUid(uid: string | undefined): string {
+  if (!uid) {
+    throw new DomainError("unauthenticated", "Authentication is required");
   }
-  return auth.uid;
+  return uid;
 }
 
 // D-05/D-06: the tenant sent by the client is never trusted on its own. It is
@@ -29,8 +29,8 @@ export async function authorizeTenantMember(
   const membership = await new FirestoreMembershipRepository(db)
     .get(uid, tenantId);
   if (!membership || !isActiveMembershipOf(membership, tenantId)) {
-    throw new HttpsError(
-      "permission-denied",
+    throw new DomainError(
+      "permission_denied",
       "No active membership in this tenant",
     );
   }

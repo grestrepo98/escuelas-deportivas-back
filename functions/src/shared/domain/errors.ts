@@ -1,5 +1,6 @@
-// Business-rule violations. The functions layer maps `code` to HttpsError.
+// Business-rule violations. The HTTP layer maps `code` to a status.
 export type DomainErrorCode =
+  | "unauthenticated"
   | "permission_denied"
   | "not_found"
   | "failed_precondition"

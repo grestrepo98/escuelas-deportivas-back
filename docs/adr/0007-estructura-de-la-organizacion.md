@@ -10,6 +10,14 @@ El dueño gestiona la ficha de su organización, sedes, categorías y grupos con
 **7 callables de escritura** auditadas y **1 de lectura** (`getStructure`). Nada
 se borra: se cierra y se reabre. La alta de una organización es un script.
 
+> **Actualización (ADR 0009, 2026-10-04):** las callables de este ADR se exponen como
+> rutas de `structureApi` y `tenantApi` (por ejemplo `POST` y `PUT
+> /tenants/:tenantId/venues` en lugar de `saveVenue`, y `GET
+> /tenants/:tenantId/structure` en lugar de `getStructure`). Las reglas de negocio,
+> la visibilidad y los errores de dominio no cambian; los errores pasan a estados
+> HTTP (ver ADR 0009). Donde la tabla dice "una callable de árbol" o
+> `failed-precondition`, léase una ruta de árbol y `409`.
+
 ## Contexto
 
 La Fase 1 trae 7 módulos y no cabe en una spec. Jugadores, usuarios con alcance,

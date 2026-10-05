@@ -1,6 +1,6 @@
 // Layer boundaries (spec 03, ADR 0008): domain and application stay free of
-// Firebase and zod; only infrastructure may import them. The rules are proven
-// by src/shared/infrastructure/lint-boundaries.test.ts.
+// Firebase, zod and express; only infrastructure may import them. The rules
+// are proven by src/shared/infrastructure/lint-boundaries.test.ts.
 const frameworkPatterns = [
   {
     group: ["firebase-admin", "firebase-admin/*"],
@@ -17,6 +17,10 @@ const frameworkPatterns = [
   {
     group: ["zod", "zod/*"],
     message: "Only infrastructure may import zod.",
+  },
+  {
+    group: ["express", "express/*"],
+    message: "Only infrastructure may import express.",
   },
 ];
 
@@ -47,6 +51,7 @@ module.exports = {
   parser: "@typescript-eslint/parser",
   parserOptions: {
     project: ["tsconfig.json", "tsconfig.dev.json"],
+    tsconfigRootDir: __dirname,
     sourceType: "module",
   },
   plugins: [
@@ -62,6 +67,8 @@ module.exports = {
     "quotes": ["error", "double"],
     "import/no-unresolved": 0,
     "indent": ["error", 2],
+    // Express exposes its router as a factory function, not a constructor.
+    "new-cap": ["error", {"capIsNewExceptions": ["Router"]}],
     // A module path cannot be wrapped, and layered paths are long.
     "max-len": ["error", {
       "code": 80,

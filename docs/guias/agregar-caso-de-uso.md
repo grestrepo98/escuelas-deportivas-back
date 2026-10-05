@@ -1,4 +1,4 @@
-# Cómo agregar un caso de uso (y su callable)
+# Cómo agregar un caso de uso (y su ruta)
 
 Receta con TDD, de adentro hacia afuera. Usa `ChangeMembershipRole` como modelo.
 Cada paso termina en verde antes de pasar al siguiente. Todo el código vive en
@@ -9,10 +9,10 @@ comandos se corren desde `functions/`.
 
 - La regla de negocio está en una spec aprobada (`specs/`). Si no, va primero a la spec.
 - Decide a qué **módulo** pertenece (`membership`, `tenant`, `structure`…). Si es
-  un módulo nuevo, crea su carpeta con las tres capas; no hay nada que registrar.
+  un módulo nuevo, crea su carpeta con las tres capas y su `<módulo>Api` (paso 4).
 - Decide si necesita **dominio** (hay reglas) o es una **lectura pura** (solo
   consultar y dar forma): las lecturas pueden ser una consulta en el adaptador,
-  como `listMyMemberships`.
+  como `GET /me/memberships`.
 
 ## 1. Application: puertos nuevos (solo si hacen falta)
 
@@ -64,23 +64,31 @@ Las colecciones nuevas viven bajo `tenants/{tenantId}/...` (D-05). Si la consult
 usa varios filtros de desigualdad u orden, agrega el índice a
 `firestore.indexes.json`.
 
-## 4. Callable
+## 4. Ruta en la API del módulo
 
-1. Crea `<módulo>/infrastructure/callables/<nombre>/schema.ts` con el zod de **entrada** y
-   de **salida**. Usa `.strict()`. El actor nunca va en la entrada.
-2. **Test de contrato primero** en
-   `<módulo>/infrastructure/callables/<nombre>.callable.integration.test.ts`.
-   Cubre como mínimo:
-   - sin sesión → `UNAUTHENTICATED`;
-   - entrada inválida → `INVALID_ARGUMENT` (campo faltante, valor fuera de rango, campo extra);
-   - usuario de otro tenant → `PERMISSION_DENIED` y nada cambia;
+1. Define la ruta REST (`/tenants/:tenantId/...` o `/me/...`) y el método. El
+   `tenantId` va en la ruta, nunca en el cuerpo.
+2. Crea `<módulo>/infrastructure/http/routes/<nombre>/schema.ts` con el zod de
+   **entrada** y de **salida**. Usa `.strict()`. El actor nunca va en la entrada.
+3. **Test de contrato primero** en
+   `<módulo>/infrastructure/http/routes/<nombre>/<nombre>.route.integration.test.ts`,
+   llamando a la ruta por HTTP contra el emulador. Cubre como mínimo:
+   - sin token → `401`;
+   - entrada inválida → `400` (campo faltante, valor fuera de rango, campo extra);
+   - usuario de otro tenant → `403` y nada cambia;
    - cada rol que **no** debe poder hacerlo;
-   - una membresía recién desactivada → `PERMISSION_DENIED` con el mismo token;
+   - una membresía recién desactivada → `403` con el mismo token;
    - el camino feliz y, si escribe, su bitácora.
-3. Implementa `index.ts` con este orden fijo:
-   `requireUid` → `parseInput` (zod; → `invalid-argument`) → `authorizeTenantMember` →
-   caso de uso dentro de `try/catch` con `toHttpsError` → `outputSchema.parse`.
-4. Exporta la callable en `functions/src/index.ts`.
+4. Implementa `handler.ts` con este orden fijo: `parseInput` (zod; → `400`) →
+   `authorizeTenantMember` (el `uid` ya lo dejó el middleware `authenticate`) →
+   caso de uso → `outputSchema.parse`. Los errores los traduce el manejador
+   compartido (`shared/infrastructure/http/error-handler.ts`); el handler no
+   captura nada.
+5. Registra la ruta en `<módulo>/infrastructure/http/router.ts`.
+6. Si es un **módulo nuevo**, crea `<módulo>/infrastructure/http/<módulo>-api.ts`
+   (`onRequest({cors}, createApi(router))`) y expórtalo en `functions/src/index.ts`.
+   Un módulo existente no toca `index.ts`: agregar un caso de uso es agregar una
+   ruta, no una function.
 
 ## 5. Cierre
 
@@ -92,7 +100,8 @@ npm run test:unit && npm run test:rules && npm run test:integration
 
 - Si agregaste una dependencia de runtime, va en `dependencies` de `functions`
   (no en `devDependencies`, o esbuild la incluirá en el bundle).
-- Si el cambio altera el contrato de una callable ya publicada, **no lo rompas**:
-  conserva la anterior hasta que el front publique la nueva (D-01).
+- Si el cambio altera el contrato de una ruta ya publicada, **no lo rompas**:
+  conserva la anterior (o publica la nueva bajo otra versión de ruta) hasta que el
+  front publique la suya (D-01).
 - Un ADR en `docs/adr/` por cada decisión que no sea obvia, y replica `docs/` a
   `../escuelas-front/docs/` y `../docs/` en la misma sesión.

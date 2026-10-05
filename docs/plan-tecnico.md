@@ -51,11 +51,11 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 
 **Por qué:** independencia real entre las dos partes: despliegue, configuración, versiones e historial propios. Las reglas de negocio (aplicar un abono al cobro más antiguo, calcular el semáforo, C1–C22) viven en `domain`, sin depender de Firebase, y se prueban rápido con Vitest. Como el front nunca ejecuta lógica de negocio (D-03), no necesita importar `domain`.
 
-**Contratos entre front y back:** la fuente de verdad es el back. Define los esquemas zod de entrada y salida de cada callable en su propio código, junto a la callable en `functions/`, y valida cada petición; si la entrada no cumple, falla con `HttpsError('invalid-argument')`. No se publica ningún paquete: el front escribe sus propios tipos y esquemas zod dentro de su adaptador de acceso a datos (D-03), copiados de los del back.
+**Contratos entre front y back:** la fuente de verdad es el back. Define los esquemas zod de entrada y salida de cada ruta en su propio código, junto al handler de la ruta en `functions/`, y valida cada petición; si la entrada no cumple, responde `400` con los nombres de los campos inválidos (ADR 0009). No se publica ningún paquete: el front escribe sus propios tipos y esquemas zod dentro de su adaptador de acceso a datos (D-03), copiados de los del back.
 
 - Flujo: cambio de un esquema en el back → se despliega → el front ajusta su adaptador en su propio PR.
-- Cambio incompatible: como los despliegues son independientes, el back mantiene la callable anterior funcionando hasta que el front publique la nueva.
-- Costo aceptado: los tipos quedan duplicados y una diferencia entre front y back no se detecta al compilar. Aparece como un error de validación del back, por eso cada callable lleva tests de su contrato y el adaptador del front tiene los suyos. Un cambio de contrato exige dos PRs (uno por repo).
+- Cambio incompatible: como los despliegues son independientes, el back mantiene la ruta anterior funcionando (o publica la nueva bajo otra versión de ruta) hasta que el front publique la suya.
+- Costo aceptado: los tipos quedan duplicados y una diferencia entre front y back no se detecta al compilar. Aparece como un error de validación del back, por eso cada ruta lleva tests de su contrato y el adaptador del front tiene los suyos. Un cambio de contrato exige dos PRs (uno por repo).
 
 **Firebase compartido:** ambos repos apuntan a los mismos proyectos (`escuelas-deportivas-dev`, `escuelas-deportivas-prod`, D-13). Cada repo despliega solo lo suyo: el front con `--only hosting`; el back con `--only functions,firestore,storage`. Así ninguno pisa al otro.
 
@@ -64,7 +64,7 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 **Alternativas descartadas:**
 
 - Monorepo con npm workspaces (un solo repo, tipos compartidos sin publicar). Se descarta porque se priorizó la independencia de los dos proyectos sobre la comodidad de compartir código.
-- Paquete npm privado publicado (`contracts`) con los esquemas y tipos de las callables: tipos compartidos y verificados al compilar, a cambio de un registro de paquetes, tokens de lectura en el CI del front, versionado y publicación en cada cambio. Se descarta por el costo operativo para un equipo pequeño.
+- Paquete npm privado publicado (`contracts`) con los esquemas y tipos de las rutas de la API: tipos compartidos y verificados al compilar, a cambio de un registro de paquetes, tokens de lectura en el CI del front, versionado y publicación en cada cambio. Se descarta por el costo operativo para un equipo pequeño.
 
 **Decisión:** dos repositorios, `escuelas-front` y `escuelas-back`, en GitHub cuenta personal `grestrepo98`, privados (aún no creados), agrupados en un GitHub Project.
 
@@ -74,7 +74,7 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 
 ### D-02 · Arquitectura hexagonal en el backend
 
-**Propuesta:** `domain` define puertos (`PaymentRepository`, `Clock`, `ReceiptNumberGenerator`, y más adelante `PaymentProvider` e `InvoicingProvider`, D-18 y D-19) y casos de uso. Cada puerto se crea en la fase que lo necesita; la Fase 0 solo crea los de membresía y bitácora. `functions` implementa los adaptadores con Firestore y expone los casos de uso como callable functions. Ambos viven en el repo `escuelas-back` (D-01).
+**Propuesta:** `domain` define puertos (`PaymentRepository`, `Clock`, `ReceiptNumberGenerator`, y más adelante `PaymentProvider` e `InvoicingProvider`, D-18 y D-19) y casos de uso. Cada puerto se crea en la fase que lo necesita; la Fase 0 solo crea los de membresía y bitácora. `functions` implementa los adaptadores con Firestore y expone los casos de uso como rutas HTTP de la API de cada módulo (D-03, ADR 0009). Ambos viven en el repo `escuelas-back` (D-01).
 
 **Por qué:** Firestore es una decisión de infraestructura, no de negocio. Si más adelante una parte necesita otra base de datos (por ejemplo reportes en BigQuery), el dominio no cambia. Además permite TDD estricto sin emulador en la mayoría de los tests.
 
@@ -84,6 +84,8 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 
 **Actualización (spec 03, 2026-10-04):** `domain` deja de ser un paquete aparte. Cada módulo de `functions/src` tiene `domain` (reglas puras), `application` (casos de uso y puertos) e `infrastructure` (adaptadores Firestore y callables). La frontera la verifica ESLint y la prueba un test (ADR 0008).
 
+**Actualización (ADR 0009, 2026-10-04):** la parte de `infrastructure` que expone los casos de uso deja de ser `callables/` y pasa a ser `http/`: un router Express por módulo con un handler y un esquema zod por ruta. Express vive solo en `infrastructure`; `domain` y `application` no lo importan.
+
 **Estado:** Acordado.
 
 ### D-03 · Modelo híbrido de lectura y escritura
@@ -91,21 +93,26 @@ escuelas-deportivas-app/            (carpeta simple, NO es un repo git)
 **Propuesta:**
 
 - **Lecturas** desde el cliente con el SDK de Firestore, protegidas por Security Rules (tiempo real, soporte offline gratis).
-- **Escrituras sensibles** solo por Cloud Functions callable: pagos, efectivo, recibos, cierres de caja, anulaciones, becas, cambios de rol y bitácora. Las rules niegan escritura directa del cliente en esas colecciones.
+- **Escrituras sensibles** solo por la API HTTP del módulo (una Cloud Function por módulo): pagos, efectivo, recibos, cierres de caja, anulaciones, becas, cambios de rol y bitácora. Las rules niegan escritura directa del cliente en esas colecciones.
 - **Escrituras simples** (por ejemplo marcar asistencia) pueden ir directas si las rules las validan.
 
 **Por qué:** los principios 3 y 4 de producto (cada peso deja rastro, nada se borra) no se pueden garantizar si el cliente escribe pagos directamente: cualquier coordinador con las herramientas del navegador podría saltarse la validación. La function es el único punto que escribe el movimiento y su bitácora en una misma transacción.
 
 **Alternativa:** todo por functions (más simple de razonar, pero perdemos tiempo real y offline en lecturas) o todo directo con rules (más rápido, pero las reglas complejas se vuelven inmanejables).
 
-**Qué es una callable:** un tipo de Cloud Function (`onCall`) que funciona como endpoint del backend. El front la invoca con el SDK (`httpsCallable`), Firebase adjunta y verifica el token del usuario (`request.auth.uid` llega ya validado), serializa la entrada y la salida en JSON y estandariza los errores (`HttpsError`). La alternativa, `onRequest`, es una function HTTP común donde CORS, token y formato corren por nuestra cuenta.
+**Qué es la API de un módulo (ADR 0009):** una Cloud Function HTTP (`onRequest`) por módulo (`membershipApi`, `tenantApi`, `structureApi`, y las que vengan), con una app Express adentro que enruta todos los endpoints del módulo. El front las invoca con `fetch`, enviando el token de Firebase Auth en `Authorization: Bearer`. Un middleware lo verifica (`verifyIdToken`) y deja el `uid` disponible; otro traduce los errores a estados HTTP. CORS se configura con la opción `cors` de `onRequest`. La alternativa original, `onCall` (una function por caso de uso), verifica el token, serializa y estandariza errores sin código propio, pero despliega una function por caso de uso.
 
-**Decisión:** el producto no necesita tiempo real, así que **todo pasa por Cloud Functions callable, lecturas y escrituras**. El cliente no accede a Firestore directamente. Consecuencias aceptadas:
+**Decisión:** el producto no necesita tiempo real, así que **todo pasa por la API HTTP de cada módulo, lecturas y escrituras**. El cliente no accede a Firestore directamente. Consecuencias aceptadas:
 
 - Las Security Rules arrancan en modo "denegar todo" para clientes (`allow read, write: if false`). Los permisos por rol, organización y sede se validan en el backend, en el dominio (D-02). Las rules siguen con sus tests (D-07), incluyendo que el acceso directo del cliente falla.
 - Se pierde la caché offline automática de Firestore. La asistencia y el carné (§7.11, §7.12) usan una **caché local propia** (IndexedDB) con la lista del grupo y una cola de sincronización (ver D-12).
 - Cada lectura es una invocación: más latencia y costo por invocación. Se mide en el piloto.
+- Un solo despliegue por módulo: agregar un caso de uso agrega una ruta, no una function. Menos arranques en frío y menos superficie de despliegue.
+- Pasamos a mantener tres piezas que `onCall` daba gratis: el middleware de autenticación, el manejador de errores y CORS. Son pequeñas, compartidas y con tests.
+- Las rutas son REST bajo `/tenants/:tenantId/...` y `/me/...`. El `tenantId` viaja en la ruta y se valida contra la membresía en cada llamada (D-05, D-06), nunca se confía.
 - **Puerta abierta:** el front accede a los datos solo a través de una interfaz de acceso a datos (un adaptador), nunca llamando a las functions desde cada pantalla. Si el uso de functions resulta lento, se puede agregar un adaptador de lectura directa a Firestore para esas consultas, escribiendo y probando las rules correspondientes. No cambia el resto de la app.
+
+**Actualización (ADR 0009, 2026-10-04):** se reemplazan las callables (una function `onCall` por caso de uso) por una API HTTP por módulo con Express, porque con 10 callables ya se veía que el número de functions crecería con cada caso de uso. Los principios de esta decisión (todo pasa por functions, rules en "denegar todo", puerta abierta del adaptador en el front) no cambian. El front aún no llamaba ninguna callable, así que no hay periodo de transición.
 
 **Estado:** Acordado.
 

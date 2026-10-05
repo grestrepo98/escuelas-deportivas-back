@@ -41,6 +41,8 @@ describe("domain layer boundary", () => {
     ["a firebase-functions subpath", "firebase-functions/v2/https"],
     ["@google-cloud/*", "@google-cloud/firestore"],
     ["zod", "zod"],
+    ["express", "express"],
+    ["an express subpath", "express/lib/router"],
     ["its own infrastructure", "../infrastructure/firestore/repository"],
     ["shared infrastructure", "../../shared/infrastructure/admin"],
     ["its own application", "../application/membership-repository"],
@@ -81,6 +83,7 @@ describe("application layer boundary", () => {
     ["firebase-functions", "firebase-functions"],
     ["@google-cloud/*", "@google-cloud/firestore"],
     ["zod", "zod"],
+    ["express", "express"],
     ["its own infrastructure", "../infrastructure/firestore/repository"],
     ["shared infrastructure", "../../shared/infrastructure/admin"],
   ])("rejects importing %s", async (_name, source) => {
@@ -121,6 +124,7 @@ describe("infrastructure layer and scripts", () => {
     ["firebase-admin", "firebase-admin/firestore"],
     ["firebase-functions", "firebase-functions/v2/https"],
     ["zod", "zod"],
+    ["express", "express"],
     ["shared infrastructure", "../../shared/infrastructure/admin"],
   ])("infrastructure may import %s", async (_name, source) => {
     const violations = await boundaryViolations(

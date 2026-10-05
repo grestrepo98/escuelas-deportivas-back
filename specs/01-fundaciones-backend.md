@@ -1,5 +1,7 @@
 # SPEC 01 — Fundaciones del backend (Fase 0 técnica)
 
+> **Corrección (2026-10-04):** el borde de este documento se implementó como callables (`onCall`, una function por caso de uso). El ADR 0009 y la spec 04 lo reemplazan por una API HTTP con Express por módulo: `listMyMemberships` pasa a `GET /me/memberships` y `changeMembershipRole` a `PATCH /tenants/:tenantId/memberships/:uid/role`, ambas en `membershipApi`. Los errores `HttpsError` pasan a estados HTTP (`unauthenticated` 401, `permission-denied` 403, `invalid-argument` 400, `failed-precondition` 409, `not-found` 404). Los criterios de aceptación de abajo describen lo que se construyó y se conservan; la spec 04 los reexpresa para las rutas.
+
 > **Status:** Implemented
 > **Depends on:** ninguna (primera spec). Contexto en `docs/plan-tecnico.md` y `docs/producto.md`; trazabilidad de lo que queda fuera en `specs/ROADMAP.md`.
 > **Date:** 2026-10-03

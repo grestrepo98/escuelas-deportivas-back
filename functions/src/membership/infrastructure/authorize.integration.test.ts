@@ -37,7 +37,7 @@ const codeOf = async (promise: Promise<unknown>) => {
 
 describe("requireUid", () => {
   it("returns the uid of an authenticated caller", () => {
-    expect(requireUid({uid: "u1", token: {}} as never)).toBe("u1");
+    expect(requireUid("u1")).toBe("u1");
   });
 
   it("throws unauthenticated when there is no session", () => {
@@ -58,18 +58,18 @@ describe("authorizeTenantMember", () => {
 
   it("denies a caller with no membership in the tenant", async () => {
     expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a")))
-      .toBe("permission-denied");
+      .toBe("permission_denied");
   });
 
   it("denies an inactive membership", async () => {
     await repo.save(membership({status: "inactive"}));
     expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a")))
-      .toBe("permission-denied");
+      .toBe("permission_denied");
   });
 
   it("denies a member of another tenant", async () => {
     await repo.save(membership({tenantId: "tenant-b"}));
     expect(await codeOf(authorizeTenantMember(db, "u1", "tenant-a")))
-      .toBe("permission-denied");
+      .toBe("permission_denied");
   });
 });

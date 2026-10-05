@@ -1,8 +1,9 @@
 # Arquitectura del backend
 
 Estado: refleja lo construido por las specs 01 (fundaciones), 02 (estructura de
-la organización) y 03 (reestructura modular de `functions`). Las decisiones numeradas (D-xx) están en `plan-tecnico.md`; las
-de cada spec, en `adr/`.
+la organización), 03 (reestructura modular de `functions`) y 04 (una API HTTP con
+Express por módulo, **ADR 0009**). Las decisiones numeradas (D-xx) están en
+`plan-tecnico.md`; las de cada spec, en `adr/`.
 
 ## Capas
 
@@ -12,12 +13,12 @@ tiene tres capas (ADR 0008):
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Cliente (escuelas-front): solo llama callables               │
+│ Cliente (escuelas-front): solo llama a las APIs HTTP         │
 └──────────────────────────────┬───────────────────────────────┘
                                │ HTTPS + ID token de Firebase Auth
 ┌──────────────────────────────▼───────────────────────────────┐
-│ <módulo>/infrastructure/callables   (borde)                  │
-│   sesión → zod → autorización por membresía → caso de uso    │
+│ <módulo>/infrastructure/http   (borde, Express)              │
+│   token → zod → autorización por membresía → caso de uso     │
 ├──────────────────────────────────────────────────────────────┤
 │ <módulo>/application   casos de uso + PUERTOS (interfaces)   │
 │ <módulo>/domain        entidades y reglas puras              │
@@ -32,7 +33,7 @@ tiene tres capas (ADR 0008):
 | --- | --- | --- |
 | `domain` | entidades, validadores y funciones puras | `shared/domain` y el `domain` de otros módulos |
 | `application` | casos de uso, puertos y sus dobles en memoria (`testing/`) | `domain` y `application` |
-| `infrastructure` | adaptadores de Firestore, callables, `authorize` | todo, incluidos Firebase y zod |
+| `infrastructure` | adaptadores de Firestore, routers Express (`http/`), `authorize` | todo, incluidos Firebase y zod |
 
 La dependencia apunta hacia adentro. Lo hace cumplir ESLint
 (`no-restricted-imports` en `functions/.eslintrc.js`) y lo prueba
@@ -40,21 +41,24 @@ La dependencia apunta hacia adentro. Lo hace cumplir ESLint
 importan Firebase, `@google-cloud/*` ni `zod`, y ninguno importa `infrastructure`.
 `shared/application/unit-of-work.ts` es la única excepción de composición (ADR 0008).
 
-**Todo es una callable (D-03).** El cliente nunca toca Firestore ni Storage:
+**Todo pasa por la API HTTP del módulo (D-03, ADR 0009).** Cada módulo expone una
+sola Cloud Function `onRequest` (`membershipApi`, `tenantApi`, `structureApi`) con una
+app Express adentro. Express vive solo en `infrastructure/http`; `domain` y
+`application` no lo importan. El cliente nunca toca Firestore ni Storage:
 `firestore.rules` y `storage.rules` son `allow read, write: if false`, y
 `test:rules` lo demuestra con tres tipos de llamante sobre cada colección.
 
-## Casos de uso y callables
+## Casos de uso y rutas
 
-| Callable | Caso de uso (`application`) | Quién | ADR |
-| --- | --- | --- | --- |
-| `listMyMemberships` | lectura pura (consulta en el adaptador) | cualquier sesión | 0002 |
-| `changeMembershipRole` | `ChangeMembershipRole` | `owner` | 0004 |
-| `updateTenantProfile` | `UpdateTenantProfile` | `owner` | 0007 |
-| `saveVenue`, `setVenueStatus` | `SaveVenue`, `SetVenueStatus` | `owner` | 0007 |
-| `saveCategory`, `setCategoryStatus` | `SaveCategory`, `SetCategoryStatus` | `owner` | 0007 |
-| `saveGroup`, `setGroupStatus` | `SaveGroup`, `SetGroupStatus` | `owner` | 0007 |
-| `getStructure` | `visibleStructure` (función pura) sobre la lectura del tenant | por rol y alcance | 0007 |
+| API | Ruta | Caso de uso (`application`) | Quién | ADR |
+| --- | --- | --- | --- | --- |
+| `membershipApi` | `GET /me/memberships` | lectura pura (consulta en el adaptador) | cualquier sesión | 0002 |
+| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/role` | `ChangeMembershipRole` | `owner` | 0004 |
+| `tenantApi` | `PUT /tenants/:tenantId/profile` | `UpdateTenantProfile` | `owner` | 0007 |
+| `structureApi` | `POST /tenants/:tenantId/venues`, `PUT …/venues/:id`, `PATCH …/venues/:id/status` | `SaveVenue`, `SetVenueStatus` | `owner` | 0007 |
+| `structureApi` | las mismas tres rutas para `categories` | `SaveCategory`, `SetCategoryStatus` | `owner` | 0007 |
+| `structureApi` | las mismas tres rutas para `groups` | `SaveGroup`, `SetGroupStatus` | `owner` | 0007 |
+| `structureApi` | `GET /tenants/:tenantId/structure` | `visibleStructure` (función pura) sobre la lectura del tenant | por rol y alcance | 0007 |
 
 ## Puertos y adaptadores
 
@@ -85,9 +89,9 @@ en la Fase 2.
 
 ### Lecturas
 
-- `listMyMemberships` no pasa por el dominio: es una consulta de lectura
+- `GET /me/memberships` no pasa por el dominio: es una consulta de lectura
   (`membership/infrastructure/firestore/my-memberships-query.ts`).
-- `getStructure` lee con `readStructure` (`structure/infrastructure/firestore/structure-query.ts`),
+- `GET /tenants/:tenantId/structure` lee con `readStructure` (`structure/infrastructure/firestore/structure-query.ts`),
   descarta lo cerrado salvo `includeClosed`, aplica `visibleStructure` del dominio
   y devuelve DTO con fechas ISO 8601 en UTC y sin `tenantId`.
 
@@ -112,25 +116,25 @@ tenants/{tenantId}/auditLog/{id}      # solo creación
 
 ## Autorización (D-05, D-06)
 
-No hay claims de tenant ni de rol. En cada llamada:
+No hay claims de tenant ni de rol. En cada petición:
 
-1. `request.auth` debe existir (`unauthenticated`).
-2. El `tenantId` del cliente **no se confía**: se lee `memberships/{uid}_{tenantId}`.
-3. Sin membresía activa: `permission-denied` (mismo mensaje si no existe o está inactiva).
+1. El header `Authorization: Bearer <idToken>` debe traer un token válido (`401`).
+2. El `tenantId` de la ruta **no se confía**: se lee `memberships/{uid}_{tenantId}`.
+3. Sin membresía activa: `403` (mismo mensaje si no existe o está inactiva).
 4. El caso de uso aplica las reglas de rol: las escrituras de estructura exigen
-   `owner` (`requireOwner`); `getStructure` aplica la tabla de visibilidad.
+   `owner` (`requireOwner`); la ruta de estructura aplica la tabla de visibilidad.
 
 Desactivar una membresía corta el acceso en la **siguiente** llamada, sin
 revocar tokens.
 
-### Visibilidad de `getStructure`
+### Visibilidad de `GET /tenants/:tenantId/structure`
 
 | Rol | Ve |
 | --- | --- |
 | `owner`, `accountant` | Todo |
 | `coordinator` | Sus sedes, los grupos de esas sedes y todas las categorías |
 | `teacher` | Sus grupos, las sedes y categorías de esos grupos |
-| `guardian`, `adultPlayer` | `permission-denied` |
+| `guardian`, `adultPlayer` | `403` |
 
 Un `coordinator` o `teacher` con `scope` vacío ve todo vacío. Detalle en el ADR 0007.
 
@@ -139,24 +143,24 @@ Un `coordinator` o `teacher` con `scope` vacío ve todo vacío. Detalle en el AD
 ```mermaid
 sequenceDiagram
     participant C as Cliente
-    participant F as callable changeMembershipRole
+    participant F as membershipApi PATCH …/memberships/:uid/role
     participant A as authorizeTenantMember
     participant U as ChangeMembershipRole (application)
     participant DB as Firestore (transacción)
 
-    C->>F: {tenantId, targetUid, newRole, reason?} + ID token
-    F->>F: requireUid(request.auth)
-    F->>F: zod: validar entrada (si falla: invalid-argument)
+    C->>F: PATCH /tenants/{tenantId}/memberships/{targetUid}/role {newRole, reason?} + ID token
+    F->>F: authenticate: verifyIdToken (si falla: 401)
+    F->>F: zod: validar entrada (si falla: 400)
     F->>A: ¿membresía activa del actor en tenantId?
     A->>DB: get memberships/{actor}_{tenantId}
-    A-->>F: ok / permission-denied
+    A-->>F: ok / 403
     F->>U: execute({tenantId, actorUid, targetUid, newRole, reason, device})
     U->>DB: leer actor, leer objetivo, contar owners activos
     U->>U: reglas (solo owner, existe, rol distinto, queda un owner)
     U->>DB: guardar membresía + crear entrada de bitácora
     DB-->>U: commit atómico (o rollback total)
     U-->>F: {membershipId, role}
-    F->>F: DomainError → HttpsError (toHttpsError)
+    F->>F: DomainError → estado HTTP (error-handler)
     F-->>C: {membershipId, role}
 ```
 
@@ -172,16 +176,20 @@ grupos activos).
 
 ## Errores
 
-| Error de dominio | `HttpsError` | Ejemplo |
-| --- | --- | --- |
-| `permission_denied` | `permission-denied` | un no-`owner` intenta escribir |
-| `not_found` | `not-found` | la sede no existe en ese tenant |
-| `failed_precondition` | `failed-precondition` | nombre repetido; cerrar con hijos activos |
-| `invalid_argument` | `invalid-argument` | nombre en blanco; horario con `end <= start` |
-| cualquier otro | `internal` (mensaje genérico) | |
+El cuerpo de todo error es `{error: {code, message}}` (ADR 0009).
 
-La forma de la entrada la rechaza zod en el borde (también `invalid-argument`);
-las reglas de negocio de los valores, el dominio.
+| Error | Estado HTTP | Ejemplo |
+| --- | --- | --- |
+| sin token o token inválido | `401` | petición sin `Authorization` |
+| `permission_denied` | `403` | un no-`owner` intenta escribir |
+| `not_found` y ruta desconocida | `404` | la sede no existe en ese tenant |
+| `failed_precondition` | `409` | nombre repetido; cerrar con hijos activos |
+| `invalid_argument` | `400` | nombre en blanco; horario con `end <= start` |
+| cualquier otro | `500` (mensaje genérico) | |
+
+La forma de la entrada la rechaza zod en el borde (también `400`, con los nombres
+de los campos y nunca sus valores); las reglas de negocio de los valores, el
+dominio.
 
 ## Pruebas
 
@@ -189,8 +197,8 @@ las reglas de negocio de los valores, el dominio.
 | --- | --- | --- |
 | `test:unit` | dominio y casos de uso con dobles, y las fronteras de capas | no |
 | `test:rules` | Firestore y Storage deniegan todo al cliente, también en sedes, categorías y grupos | Firestore + Storage |
-| `test:integration` | adaptadores, atomicidad, callables por HTTP, seed, alta de organización | Auth + Firestore + Functions |
-| `smoke:dev` / `smoke:emulator` | callables desplegadas (o locales) de punta a punta | Functions desplegadas / emuladores |
+| `test:integration` | adaptadores, atomicidad, rutas de las APIs por HTTP, seed, alta de organización | Auth + Firestore + Functions |
+| `smoke:dev` / `smoke:emulator` | APIs desplegadas (o locales) de punta a punta | Functions desplegadas / emuladores |
 
 Los emuladores usan proyectos `demo-*`, sin acceso a la nube.
 

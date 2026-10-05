@@ -33,28 +33,42 @@ export async function clearAuth(): Promise<void> {
   );
 }
 
-export type CallableResponse = {
+export type ApiResponse = {
   status: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body: any;
+  headers: Headers;
 };
 
-// Invokes a callable the way the client SDK does: POST {"data": ...}.
-export async function callCallable(
-  name: string,
-  data: unknown,
+// Calls a route of a module API (e.g. "membershipApi") the way the front
+// will: plain HTTP with the ID token in `Authorization: Bearer`.
+export async function callApi(
+  fn: string,
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS",
+  path: string,
+  body?: unknown,
   idToken?: string,
-): Promise<CallableResponse> {
+): Promise<ApiResponse> {
   const response = await fetch(
-    `http://${functionsHost()}/${INTEGRATION_PROJECT_ID}/us-central1/${name}`,
+    `http://${functionsHost()}/${INTEGRATION_PROJECT_ID}/us-central1/${fn}` +
+      path,
     {
-      method: "POST",
+      method,
       headers: {
-        "Content-Type": "application/json",
+        ...(body !== undefined && {"Content-Type": "application/json"}),
         ...(idToken && {Authorization: `Bearer ${idToken}`}),
       },
-      body: JSON.stringify({data}),
+      ...(body !== undefined && {body: JSON.stringify(body)}),
     },
   );
-  return {status: response.status, body: await response.json()};
+  // The Functions runtime answers a body it cannot parse with its own HTML
+  // 400 before the app runs, so a non-JSON response has no `body`.
+  const text = await response.text();
+  let parsed: unknown;
+  try {
+    parsed = text ? JSON.parse(text) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+  return {status: response.status, body: parsed, headers: response.headers};
 }
