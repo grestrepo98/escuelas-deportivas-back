@@ -24,6 +24,12 @@ export class InMemoryMembershipRepository implements MembershipRepository {
     ).length;
   }
 
+  async listByTenant(tenantId: string): Promise<Membership[]> {
+    return [...this.items.values()]
+      .filter((m) => m.tenantId === tenantId)
+      .map((m) => structuredClone(m));
+  }
+
   snapshot(): Map<string, Membership> {
     return structuredClone(this.items);
   }

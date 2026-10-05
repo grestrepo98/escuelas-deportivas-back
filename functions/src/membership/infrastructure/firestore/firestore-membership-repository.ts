@@ -38,4 +38,12 @@ export class FirestoreMembershipRepository implements MembershipRepository {
     const snap = this.tx ? await this.tx.get(query) : await query.get();
     return snap.size;
   }
+
+  async listByTenant(tenantId: string): Promise<Membership[]> {
+    const query = this.db
+      .collection("memberships")
+      .where("tenantId", "==", tenantId);
+    const snap = this.tx ? await this.tx.get(query) : await query.get();
+    return snap.docs.map((doc) => fromMembershipDoc(doc.data()));
+  }
 }
