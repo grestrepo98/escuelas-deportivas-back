@@ -225,3 +225,102 @@ describe("PATCH …/role — input validation", () => {
     expect(await roleOf(coordinator.uid)).toBe("coordinator");
   });
 });
+
+describe("PATCH …/role — the scope travels with the role", () => {
+  const seed = async () => {
+    const base = {
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await db
+      .doc("tenants/tenant-a/venues/venue-1")
+      .set({name: "Sede Norte", address: "Calle 1", ...base});
+    await db.doc("tenants/tenant-a/groups/group-1").set({
+      venueId: "venue-1",
+      categoryId: "cat-1",
+      name: "Sub-10",
+      schedule: [],
+      ...base,
+    });
+  };
+
+  it("makes a coordinator a teacher with the given groups", async () => {
+    await seed();
+    const {status, body} = await change(
+      ownerA,
+      validInput({newRole: "teacher", scope: {groupIds: ["group-1"]}}),
+    );
+    expect(status).toBe(200);
+    expect(body.role).toBe("teacher");
+    expect((await repo.get(coordinator.uid, "tenant-a"))!.scope).toEqual({
+      venueIds: [],
+      groupIds: ["group-1"],
+      playerIds: [],
+    });
+    expect((await auditCollection().get()).docs[0].data()).toMatchObject({
+      before: {role: "coordinator", scope: {venueIds: ["v1"]}},
+      after: {role: "teacher", scope: {groupIds: ["group-1"]}},
+    });
+  });
+
+  it.each([
+    ["coordinator", {}],
+    ["coordinator", {scope: {}}],
+    ["teacher", {scope: {venueIds: ["venue-1"]}}],
+  ])("answers 400 for a %s without a valid scope", async (newRole, extra) => {
+    await seed();
+    const {status, body} = await change(
+      ownerA,
+      validInput({newRole, ...extra}),
+      {uid: (await createAccountant()).uid},
+    );
+    expect(status).toBe(400);
+    expect(body.error.code).toBe("invalid_argument");
+    expect((await auditCollection().get()).size).toBe(0);
+  });
+
+  it.each(["owner", "accountant"])(
+    "answers 400 when %s comes with a non-empty scope",
+    async (newRole) => {
+      await seed();
+      const {status, body} = await change(
+        ownerA,
+        validInput({newRole, scope: {venueIds: ["venue-1"]}}),
+      );
+      expect(status).toBe(400);
+      expect(body.error.code).toBe("invalid_argument");
+      expect(await roleOf(coordinator.uid)).toBe("coordinator");
+    },
+  );
+
+  it("answers 409 for a closed venue", async () => {
+    await seed();
+    await db.doc("tenants/tenant-a/venues/venue-1").update({status: "closed"});
+    const {status} = await change(
+      ownerA,
+      validInput({newRole: "coordinator", scope: {venueIds: ["venue-1"]}}),
+      {uid: (await createAccountant()).uid},
+    );
+    expect(status).toBe(409);
+  });
+
+  it("rejects an unexpected field inside the scope", async () => {
+    const {status, body} = await change(
+      ownerA,
+      validInput({scope: {venueIds: [], playerIds: ["p"]}}),
+    );
+    expect(status).toBe(400);
+    expect(body.error.code).toBe("invalid_argument");
+  });
+});
+
+async function createAccountant() {
+  const user = await createUser("acc@example.com");
+  await repo.save(
+    membership(user.uid, "tenant-a", "accountant", {
+      scope: {venueIds: [], groupIds: [], playerIds: []},
+    }),
+  );
+  return user;
+}

@@ -1,41 +1,39 @@
 import type {RequestHandler} from "express";
-import {ChangeMembershipRole} from "../../../../application/change-membership-role.js";
+import {InviteMember} from "../../../../application/invite-member.js";
+import {FirebaseIdentityProvider} from "../../../firebase/firebase-identity-provider.js";
 import {FirestoreUnitOfWork} from "../../../../../shared/infrastructure/firestore-unit-of-work.js";
-import {firestore} from "../../../../../shared/infrastructure/admin.js";
+import {
+  adminAuth,
+  firestore,
+} from "../../../../../shared/infrastructure/admin.js";
 import {deviceOf} from "../../../../../shared/infrastructure/http/device.js";
 import {parseInput} from "../../../../../shared/infrastructure/http/parse.js";
 import {systemClock} from "../../../../../shared/infrastructure/system-clock.js";
 import {authorizeTenantMember, requireUid} from "../../../authorize.js";
-import {
-  changeMembershipRoleInput,
-  changeMembershipRoleOutput,
-} from "./schema.js";
+import {inviteMemberInput, inviteMemberOutput} from "./schema.js";
 
-export const changeMembershipRole: RequestHandler<{
-  tenantId: string;
-  uid: string;
-}> = async (req, res) => {
+export const inviteMember: RequestHandler<{tenantId: string}> = async (
+  req,
+  res,
+) => {
   const actorUid = requireUid(res.locals.uid);
-  const {newRole, scope, reason} = parseInput(
-    changeMembershipRoleInput,
-    req.body,
-  );
-  const {tenantId, uid: targetUid} = req.params;
+  const {email, role, scope} = parseInput(inviteMemberInput, req.body);
+  const {tenantId} = req.params;
 
   const db = firestore();
   await authorizeTenantMember(db, actorUid, tenantId);
 
-  const result = await new ChangeMembershipRole(
+  const result = await new InviteMember(
     new FirestoreUnitOfWork(db),
+    new FirebaseIdentityProvider(adminAuth()),
     systemClock,
   ).execute({
     tenantId,
     actorUid,
-    targetUid,
-    newRole,
+    email,
+    role,
     scope,
-    reason,
     device: deviceOf(req),
   });
-  res.json(changeMembershipRoleOutput.parse(result));
+  res.status(201).json(inviteMemberOutput.parse(result));
 };
