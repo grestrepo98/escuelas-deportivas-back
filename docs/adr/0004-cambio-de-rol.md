@@ -23,11 +23,14 @@ El caso de uso `ChangeMembershipRole` aplica estas reglas:
 4. **Siempre queda al menos un `owner` activo** (`failed-precondition`). Esta
    invariante no viene del plan: evita dejar un tenant sin administrador. Un
    `owner` inactivo no cuenta como respaldo.
-5. El cambio **conserva el `scope`**. Cambiar el alcance es otra operación
-   (Fase 1).
+5. ~~El cambio conserva el `scope`.~~ **Reemplazada por la spec 05 (ADR 0010):**
+   rol y alcance cambian juntos. Hacia `coordinator` o `teacher` llega un
+   `scope` obligatorio; hacia `owner` o `accountant` queda vacío; hacia
+   `guardian` o `adultPlayer` se conservan sus `playerIds`. Cambiar solo el
+   alcance es la ruta `PUT …/scope`.
 6. La entrada de bitácora (`before`/`after`, actor, `reason`, `device`, hora del
    servidor) se escribe **en la misma transacción**: si falla la bitácora, el rol
-   no cambia.
+   no cambia. Desde la spec 05, `before` y `after` llevan también el `scope`.
 
 ## Interpretaciones donde la spec calla
 

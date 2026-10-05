@@ -18,6 +18,7 @@ src/
 │   ├── application/              # casos de uso, puertos y testing/ (dobles en memoria)
 │   └── infrastructure/
 │       ├── firestore/            # adaptadores de los puertos
+│       ├── firebase/             # adaptadores de sistemas fuera de Firestore (Auth)
 │       └── http/                 # <módulo>-api.ts (onRequest) · router.ts
 │           └── routes/<nombre>/  # schema.ts (zod, el contrato) + handler.ts
 └── scripts/                      # seed, smoke-dev, create-tenant (no viajan al despliegue)
@@ -42,7 +43,11 @@ La URL base de una API es `https://us-central1-<proyecto>.cloudfunctions.net/<ap
 | API | Método y ruta | Quién | Qué hace |
 | --- | --- | --- | --- |
 | `membershipApi` | `GET /me/memberships` | cualquier usuario con sesión | Lista las membresías activas propias con el nombre del tenant |
-| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/role` | `owner` activo del tenant | Cambia el rol de otra membresía y registra la bitácora en la misma transacción |
+| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/role` | `owner` activo del tenant | Cambia el rol de otra membresía y registra la bitácora en la misma transacción. `scope` opcional: obligatorio hacia `coordinator` (sedes) y `teacher` (grupos); hacia `owner` y `accountant` el alcance queda vacío |
+| `membershipApi` | `POST /tenants/:tenantId/memberships` | `owner` activo del tenant | Invita a un `accountant`, `coordinator` o `teacher` (`201`). Crea o reutiliza la cuenta de Auth y devuelve `passwordResetLink` solo si la cuenta es nueva o nunca inició sesión. Persona que ya es miembro: `409` |
+| `membershipApi` | `GET /tenants/:tenantId/memberships` | `owner`, `accountant`, `coordinator` | Miembros con correo, rol, estado y alcance. El coordinador solo ve a los de sus sedes; profesor y familia reciben `403` |
+| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/status` | `owner` activo del tenant | Activa o desactiva una membresía sin borrar nada; corta el acceso en la siguiente llamada. No desactiva al último dueño; al reactivar revalida el alcance |
+| `membershipApi` | `PUT /tenants/:tenantId/memberships/:uid/scope` | `owner` activo del tenant | Reemplaza el alcance (sedes de un coordinador, grupos de un profesor), validado contra la estructura activa |
 | `tenantApi` | `PUT /tenants/:tenantId/profile` | `owner` activo del tenant | Edita la ficha de la organización (nombre, registro IDRD, contacto) |
 | `structureApi` | `POST /tenants/:tenantId/venues` · `PUT …/venues/:venueId` | `owner` activo del tenant | Crea (201) o edita una sede |
 | `structureApi` | `PATCH /tenants/:tenantId/venues/:venueId/status` | `owner` activo del tenant | Cierra o reabre una sede. Cerrar con grupos activos se rechaza |
@@ -51,7 +56,9 @@ La URL base de una API es `https://us-central1-<proyecto>.cloudfunctions.net/<ap
 | `structureApi` | `GET /tenants/:tenantId/structure?includeClosed=true` | `owner`, `accountant`, `coordinator`, `teacher` | Árbol de sedes, categorías y grupos filtrado por rol y alcance. `includeClosed` incluye lo cerrado |
 
 Cada escritura deja exactamente una entrada de bitácora en la misma transacción.
-Detalle de las reglas en `docs/adr/0007-estructura-de-la-organizacion.md`.
+Detalle de las reglas en `docs/adr/0007-estructura-de-la-organizacion.md` (estructura)
+y `docs/adr/0010-usuarios-invitacion-y-alcance.md` (usuarios y alcance). La
+invitación no envía correo: el dueño comparte el enlace de restablecimiento.
 
 El contrato de cada ruta vive en el `schema.ts` junto a su handler: el `tenantId`
 y el id de la entidad viajan en la ruta, el actor sale del token y los cuerpos se
