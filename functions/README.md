@@ -27,10 +27,10 @@ test/rules/                       # reglas de Firestore/Storage (emulador)
 
 `audit` no tiene API propia: solo ofrece su puerto a los demás módulos.
 
-Los tests viven junto al código: `*.test.ts` (unitarios) y
-`*.integration.test.ts` (emulador). `domain` y `application` no importan Firebase,
+Los tests viven en `test/` y espejan `src/` (ADR 0012): `test/unit/**/*.test.ts`,
+`test/integration/**/*.integration.test.ts` (emulador) y `test/rules/`. `domain` y `application` no importan Firebase,
 `zod`, `express` ni `infrastructure`: lo hace cumplir `.eslintrc.js` y lo prueba
-`src/shared/infrastructure/lint-boundaries.test.ts`. Para sumar un caso de uso, ver
+`test/unit/shared/infrastructure/lint-boundaries.test.ts`. Para sumar un caso de uso, ver
 `docs/guias/agregar-caso-de-uso.md`.
 
 ## APIs y rutas
@@ -163,7 +163,7 @@ El emulador no replica el 100 % de producción. Caso real del paso 15: en Cloud 
 runtime ya crea apps de Admin con otro nombre, así que `getApps().length === 0` no sirve para
 decidir si inicializar la app por defecto (daba `app/no-app` y un 500 solo en `dev`).
 `shared/infrastructure/admin.ts` busca la app `[DEFAULT]` por nombre y
-`shared/infrastructure/admin.integration.test.ts` lo cubre. Por eso el humo en `dev` (`npm run smoke:dev`) es parte de la verificación.
+`test/integration/shared/infrastructure/admin.integration.test.ts` lo cubre. Por eso el humo en `dev` (`npm run smoke:dev`) es parte de la verificación.
 
 ## Seed
 

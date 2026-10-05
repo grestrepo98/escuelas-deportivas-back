@@ -4,7 +4,7 @@ import {defineConfig} from "vitest/config";
 // run them through `npm run test:integration` at the repo root.
 export default defineConfig({
   test: {
-    include: ["src/**/*.integration.test.ts"],
+    include: ["test/integration/**/*.integration.test.ts"],
     fileParallelism: false,
     testTimeout: 20000,
     hookTimeout: 30000,
