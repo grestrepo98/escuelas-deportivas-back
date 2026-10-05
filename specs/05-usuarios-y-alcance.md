@@ -1,6 +1,6 @@
 # SPEC 05 — Usuarios y alcance (invitar, activar/desactivar y asignar alcance)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01, SPEC 02 y SPEC 04. Cubre §7.2 de `docs/producto.md` y el gancho de C21 que deja pendiente `specs/ROADMAP.md`.
 > **Date:** 2026-10-04
 > **Objective:** Que el dueño de una organización pueda invitar a auxiliares, coordinadores y profesores, asignarles sedes o grupos, y activarlos o desactivarlos, todo por rutas del módulo `membership`.
@@ -148,27 +148,27 @@ TDD en cada paso (test que falla primero). Un commit convencional por paso. Cada
 ## Acceptance criteria
 
 - [ ] `npm run lint` pasa con 0 errores y 0 advertencias en el árbol de trabajo de Windows con `core.autocrlf=true`, y en CI.
-- [ ] `npm run format:check` pasa y el workflow `ci.yml` lo ejecuta.
-- [ ] `git ls-files --eol` no muestra `w/crlf` bajo `functions/` tras un checkout limpio.
-- [ ] `.eslintrc.js` ya no define `quotes`, `indent` ni `max-len`, extiende `prettier` al final, y `lint-boundaries.test.ts` sigue en verde.
-- [ ] El commit de formato (`style(functions): format with prettier`) no cambia lógica: las suites dan los mismos resultados que la línea base, y su hash está en `.git-blame-ignore-revs`.
-- [ ] `format` y `format:check` están documentados en `functions/README.md` y `CLAUDE.md`.
-- [ ] Cada ruta nueva responde por HTTP: sin token → `401`, entrada inválida → `400` (campo faltante, valor fuera de rango, campo extra), usuario de otra organización → `403` sin cambios, y cada rol no autorizado → `403`.
-- [ ] `POST …/memberships` con un correo nuevo crea la cuenta de Auth, la membresía activa y devuelve `passwordResetLink`; con un correo que ya inició sesión en otra organización reutiliza el `uid` y no devuelve enlace.
-- [ ] `POST …/memberships` con un coordinador sin sedes, con un profesor sin grupos, con una sede cerrada o de otra organización, o con un auxiliar con alcance no vacío responde `400` o `409` según el caso y no crea membresía ni bitácora.
-- [ ] Invitar a quien ya tiene membresía en la organización responde `409`.
-- [ ] Un usuario desactivado recibe `403` con el mismo token en la siguiente llamada, en cualquier ruta, y su historial y bitácora se conservan.
-- [ ] No se puede desactivar al último dueño activo (`409`), ni a un coordinador cuando el guardia de prueba rechaza; con el adaptador por defecto sí se permite.
-- [ ] Reactivar una membresía cuyo alcance apunta a una sede o grupo cerrado responde `409`.
-- [ ] `changeMembershipRole` a `coordinator` o `teacher` sin `scope` responde `400`; a `accountant` o `owner` deja el alcance vacío; sin `scope` y hacia `owner` o `accountant` se comporta como antes (los tests de la spec 01 siguen en verde).
-- [ ] `GET …/memberships` devuelve todos los miembros al dueño y al auxiliar, solo los de sus sedes al coordinador, y `403` al profesor; incluye `email` y no expone nada de otra organización.
-- [ ] Cada escritura deja su registro en `auditLog` (`membership.invited`, `membership.status_changed`, `membership.scope_changed`, `membership.role_changed` con `scope`), en la misma transacción que el cambio.
-- [ ] `lint-boundaries.test.ts` sigue en verde: `domain` y `application` no importan Firebase ni `express`; el adaptador de Auth vive en `infrastructure/firebase/`.
-- [ ] `firestore.rules`, `storage.rules` y `firestore.indexes.json` no cambian y los tests de rules pasan.
-- [ ] `test:unit`, `test:rules` y `test:integration` pasan, con al menos la cobertura de casos de la línea base más los nuevos; `build`, `lint` y `typecheck` pasan sin errores ni advertencias.
+- [x] `npm run format:check` pasa y el workflow `ci.yml` lo ejecuta.
+- [x] `git ls-files --eol` no muestra `w/crlf` bajo `functions/` tras un checkout limpio.
+- [x] `.eslintrc.js` ya no define `quotes`, `indent` ni `max-len`, extiende `prettier` al final, y `lint-boundaries.test.ts` sigue en verde.
+- [x] El commit de formato (`style(functions): format with prettier`) no cambia lógica: las suites dan los mismos resultados que la línea base, y su hash está en `.git-blame-ignore-revs`.
+- [x] `format` y `format:check` están documentados en `functions/README.md` y `CLAUDE.md`.
+- [x] Cada ruta nueva responde por HTTP: sin token → `401`, entrada inválida → `400` (campo faltante, valor fuera de rango, campo extra), usuario de otra organización → `403` sin cambios, y cada rol no autorizado → `403`.
+- [x] `POST …/memberships` con un correo nuevo crea la cuenta de Auth, la membresía activa y devuelve `passwordResetLink`; con un correo que ya inició sesión en otra organización reutiliza el `uid` y no devuelve enlace.
+- [x] `POST …/memberships` con un coordinador sin sedes, con un profesor sin grupos, con una sede cerrada o de otra organización, o con un auxiliar con alcance no vacío responde `400` o `409` según el caso y no crea membresía ni bitácora.
+- [x] Invitar a quien ya tiene membresía en la organización responde `409`.
+- [x] Un usuario desactivado recibe `403` con el mismo token en la siguiente llamada, en cualquier ruta, y su historial y bitácora se conservan.
+- [x] No se puede desactivar al último dueño activo (`409`), ni a un coordinador cuando el guardia de prueba rechaza; con el adaptador por defecto sí se permite.
+- [x] Reactivar una membresía cuyo alcance apunta a una sede o grupo cerrado responde `409`.
+- [x] `changeMembershipRole` a `coordinator` o `teacher` sin `scope` responde `400`; a `accountant` o `owner` deja el alcance vacío; sin `scope` y hacia `owner` o `accountant` se comporta como antes (los tests de la spec 01 siguen en verde). (Dos tests de la spec 01 se actualizaron por la regla de alcance vacío y la bitácora con `scope`: ADR 0010.)
+- [x] `GET …/memberships` devuelve todos los miembros al dueño y al auxiliar, solo los de sus sedes al coordinador, y `403` al profesor; incluye `email` y no expone nada de otra organización.
+- [x] Cada escritura deja su registro en `auditLog` (`membership.invited`, `membership.status_changed`, `membership.scope_changed`, `membership.role_changed` con `scope`), en la misma transacción que el cambio.
+- [x] `lint-boundaries.test.ts` sigue en verde: `domain` y `application` no importan Firebase ni `express`; el adaptador de Auth vive en `infrastructure/firebase/`.
+- [x] `firestore.rules`, `storage.rules` y `firestore.indexes.json` no cambian y los tests de rules pasan.
+- [x] `test:unit`, `test:rules` y `test:integration` pasan, con al menos la cobertura de casos de la línea base más los nuevos; `build`, `lint` y `typecheck` pasan sin errores ni advertencias.
 - [ ] `smoke:emulator` pasa con los pasos nuevos; tras desplegar a `escuelas-deportivas-dev`, `smoke:dev` también.
 - [ ] El CI pasa en un PR real hacia `dev`.
-- [ ] `functions/README.md`, `arquitectura.md` y el ADR 0010 describen las rutas y reglas, `ROADMAP.md` registra la spec 05, y `docs/` está replicado en los otros dos lugares.
+- [x] `functions/README.md`, `arquitectura.md` y el ADR 0010 describen las rutas y reglas, `ROADMAP.md` registra la spec 05, y `docs/` está replicado en los otros dos lugares.
 
 ## Decisiones
 

@@ -10,7 +10,7 @@
 | 02 `estructura-organizacion` | Fase 1 (parte 1) | Implementada (falta correr el seed y `smoke:dev` en `dev`) | Ficha de la organización, sedes, categorías, grupos, `getStructure` y script de alta de organización |
 | 03 `reestructura-modular-functions` | Deuda técnica | Implementada (falta el CI en un PR real y `seed:dev` + `smoke:dev` en `dev`) | Todo el código en `functions/src` por módulo con capas `domain`/`application`/`infrastructure`, fronteras por lint y despliegue a `dev` de la spec 02. Sin cambios de comportamiento |
 | 04 `api-http-por-modulo` | Deuda técnica | Borrador (solo documentación actualizada; falta el código) | Reemplaza las 10 callables por 3 APIs HTTP con Express (`membershipApi`, `tenantApi`, `structureApi`); ADR 0009. Sin cambios de casos de uso ni de reglas |
-| 05 `usuarios-y-alcance` | Fase 1 (parte 2) | Implementada en código (falta verificar criterios, `smoke:dev` en `dev` y el CI en un PR real) | Formato con Prettier y LF; invitar auxiliares, coordinadores y profesores (enlace manual, sin correo), alcance por sede/grupo, activar/desactivar y gancho de C21 (`MembershipDeactivationGuard`); ADR 0010 |
+| 05 `usuarios-y-alcance` | Fase 1 (parte 2) | Implementada (falta `smoke:dev` en `dev` y el CI en un PR real) | Formato con Prettier y LF; invitar auxiliares, coordinadores y profesores (enlace manual, sin correo), alcance por sede/grupo, activar/desactivar y gancho de C21 (`MembershipDeactivationGuard`); ADR 0010 |
 | 06+ (por crear) | Fase 1 (resto) | Pendiente | Jugadores y acudientes (7.3, 7.4; incluye invitar acudientes y jugadores adultos), documentos (7.5), importación (7.18), plataforma (7.19) |
 | (por crear) | Fase 2 | Pendiente | Dinero |
 | (por crear) | Fase 3 | Pendiente | Cancha, control y endurecimiento |
