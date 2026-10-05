@@ -11,6 +11,10 @@
 > este ADR (módulos, capas, fronteras, esbuild) no cambia. Implementado en la spec 04;
 > los árboles de más abajo muestran la estructura original con `callables/`.
 
+> **Actualización (ADR 0012, 2026-10-04):** los tests unitarios y de integración ya no
+> van junto al código: viven en `functions/test/unit/` y `functions/test/integration/`,
+> espejando la ruta de `src/`. Lo demás de este ADR no cambia.
+
 ## Resumen
 
 Todo el código del backend vive en `functions/src`, organizado **por módulo de
@@ -39,11 +43,11 @@ callables, todo en la estructura por tipo técnico. Antes de seguir con la Fase 
 | Raíz de código | Todo en `functions/src`. `functions/` es el único paquete npm del repo, con su propio `package-lock.json` |
 | Organización | Por módulo (`audit`, `membership`, `tenant`, `structure`) más `shared/` y `scripts/` |
 | Capas por módulo | `domain` (entidades y reglas puras), `application` (casos de uso y puertos) e `infrastructure` (Firestore y callables) |
-| Frontera | `no-restricted-imports` en `functions/.eslintrc.js`, probada por `shared/infrastructure/lint-boundaries.test.ts` |
+| Frontera | `no-restricted-imports` en `functions/.eslintrc.js`, probada por `test/unit/shared/infrastructure/lint-boundaries.test.ts` |
 | Herramientas de frontera | Ninguna nueva: no se usa `eslint-plugin-boundaries` ni `dependency-cruiser` |
 | Empaquetado | Se mantiene esbuild (`build.mjs`, entrada `src/index.ts`); el bundle ya no necesita workspace |
 | Scripts | `functions/src/scripts/`; esbuild solo empaqueta lo que alcanza `src/index.ts`, así que no viajan al despliegue |
-| Tests | Junto al código: `*.test.ts` (unitarios) y `*.integration.test.ts` (emulador). Los de rules, en `functions/test/rules/` |
+| Tests | Fuera de `src/`, en `functions/test/{unit,integration,rules}/` (ADR 0012); originalmente iban junto al código |
 | Comandos | Todos desde `functions/` |
 
 ## Estructura
