@@ -1,6 +1,6 @@
 # SPEC 06 — Jugadores y acudientes (ficha, inscripción por el personal, estados, búsqueda)
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** SPEC 02, SPEC 04 y SPEC 05. Cubre el núcleo de §7.3 y §7.4 de `docs/producto.md` y D-10 del plan técnico.
 > **Date:** 2026-10-04
 > **Objective:** Que el personal de una organización pueda inscribir jugadores con sus acudientes, ubicarlos en un grupo, cambiar su estado y encontrarlos, todo por rutas de un módulo nuevo `player`.
@@ -79,7 +79,7 @@ interface Player {
   status: PlayerStatus;
   statusReason: string | null;
   joinedAt: Date;
-  emergencyContact: {name: string; phone: string; relationship: string};
+  emergencyContact: { name: string; phone: string; relationship: string };
   medical: {
     bloodType?: string;
     allergies?: string;
@@ -89,7 +89,7 @@ interface Player {
   };
   guardians: GuardianLink[];
   guardianIds: string[]; // para array-contains
-  dataConsent: {guardianId: string; recordedBy: string; at: Date} | null;
+  dataConsent: { guardianId: string; recordedBy: string; at: Date } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -130,14 +130,14 @@ interface PlayerHistoryEntry {
 
 Reglas puras del dominio (`player/domain/`):
 
-| Regla         | Detalle                                                                                                                                                                                                                     |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Normalización | `nameKey` y `documentKey` con una función pura y probada (tildes, mayúsculas, espacios, ceros y puntos en el número)                                                                                                        |
-| Vínculos      | Hay como máximo un `isPaymentResponsible`, el mismo acudiente no aparece dos veces, y un jugador `activo` tiene exactamente un responsable                                                                                  |
-| Transiciones  | `preinscrito → activo \| retirado`; `activo → pausado \| retirado`; `pausado → activo \| retirado`; `retirado → preinscrito \| activo` (reingreso, C12). `pausado` y `retirado` exigen motivo                                |
-| Activar       | Exige un responsable de pago, `dataConsent` no nulo y un grupo activo                                                                                                                                                       |
-| Visibilidad   | El dueño y el auxiliar ven todo. El coordinador ve `venueId ∈ scope.venueIds`. El profesor ve `groupId ∈ scope.groupIds`, sin `document`, `guardians` ni `dataConsent`. El acudiente y el jugador adulto reciben `403`      |
-| Escritura     | Escriben el dueño, el auxiliar y el coordinador (solo en sus sedes; un cambio de grupo exige que el origen y el destino sean de sus sedes). El profesor no escribe                                                          |
+| Regla         | Detalle                                                                                                                                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Normalización | `nameKey` y `documentKey` con una función pura y probada (tildes, mayúsculas, espacios, ceros y puntos en el número)                                                                                                   |
+| Vínculos      | Hay como máximo un `isPaymentResponsible`, el mismo acudiente no aparece dos veces, y un jugador `activo` tiene exactamente un responsable                                                                             |
+| Transiciones  | `preinscrito → activo \| retirado`; `activo → pausado \| retirado`; `pausado → activo \| retirado`; `retirado → preinscrito \| activo` (reingreso, C12). `pausado` y `retirado` exigen motivo                          |
+| Activar       | Exige un responsable de pago, `dataConsent` no nulo y un grupo activo                                                                                                                                                  |
+| Visibilidad   | El dueño y el auxiliar ven todo. El coordinador ve `venueId ∈ scope.venueIds`. El profesor ve `groupId ∈ scope.groupIds`, sin `document`, `guardians` ni `dataConsent`. El acudiente y el jugador adulto reciben `403` |
+| Escritura     | Escriben el dueño, el auxiliar y el coordinador (solo en sus sedes; un cambio de grupo exige que el origen y el destino sean de sus sedes). El profesor no escribe                                                     |
 
 Puertos nuevos (`player/application/`): `PlayerRepository` (`newId`, `get`, `save`, `findByDocumentKey`, `findByNameAndBirthDate`, `listByGuardian`), `GuardianRepository` (`newId`, `get`, `save`, `findByDocumentKey`) y `PlayerHistoryWriter` (`append`). `TransactionContext` gana `players`, `guardians` y `playerHistory`. Las lecturas de lista, índice e historial son consultas de `infrastructure/firestore/` (como `structure-query.ts`), con la visibilidad pura del dominio.
 
@@ -145,20 +145,20 @@ Puertos nuevos (`player/application/`): `PlayerRepository` (`newId`, `get`, `sav
 
 El `tenantId` va en la ruta, el actor sale del token y los cuerpos usan zod `.strict()`. Rol "personal" significa dueño, auxiliar y coordinador (s).
 
-| Método y ruta                                        | Quién             | Cuerpo / query                                                                                                                                                                         | Respuesta                                                                                              |
-| ---------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `POST /tenants/:tenantId/players`                    | personal          | `{ firstNames, lastNames, document?, birthDate, groupId, emergencyContact, medical?, guardians: ({ guardianId } \| { guardian: {...} }) & { relationship, isPaymentResponsible }[], confirmDuplicate? }` | `201 { playerId, status: "preinscrito", createdGuardianIds }`                                          |
-| `GET /tenants/:tenantId/players`                     | personal, profesor | `?venueId \| categoryId \| groupId` (uno como máximo), `status?`, `cursor?`, `limit?` (50 por defecto, 100 como máximo)                                                                  | `200 { players: PlayerSummary[], nextCursor }`                                                         |
-| `GET /tenants/:tenantId/players/search-index`        | personal, profesor | —                                                                                                                                                                                      | `200 { entries: { id, fullName, documentNumber?, guardianNames?, status, groupId }[] }`                |
-| `GET /tenants/:tenantId/players/:playerId`           | personal, profesor | —                                                                                                                                                                                      | `200` ficha (la del profesor va sin los campos restringidos)                                           |
-| `PUT /tenants/:tenantId/players/:playerId`           | personal          | datos personales, de emergencia y médicos                                                                                                                                              | `200 { playerId }`                                                                                     |
-| `PUT /tenants/:tenantId/players/:playerId/placement` | personal          | `{ groupId, reason? }`                                                                                                                                                                 | `200 { playerId, groupId, venueId, categoryId }`                                                       |
-| `PATCH /tenants/:tenantId/players/:playerId/status`  | personal          | `{ status, reason? }`                                                                                                                                                                  | `200 { playerId, status }`                                                                             |
-| `PUT /tenants/:tenantId/players/:playerId/guardians` | personal          | `{ guardians: [...] }` (mismo formato que al crear; reemplaza el conjunto)                                                                                                             | `200 { playerId, createdGuardianIds }`                                                                 |
-| `PUT /tenants/:tenantId/players/:playerId/consent`   | personal          | `{ guardianId }` (debe estar vinculado)                                                                                                                                                | `200 { playerId, dataConsent }`                                                                        |
-| `GET /tenants/:tenantId/players/:playerId/history`   | personal, profesor | —                                                                                                                                                                                      | `200 { entries }` (más recientes primero)                                                              |
-| `GET /tenants/:tenantId/guardians`                   | personal          | `?documentType&documentNumber`                                                                                                                                                         | `200 { guardian \| null }` (el coordinador solo si está vinculado a un jugador de sus sedes)           |
-| `PUT /tenants/:tenantId/guardians/:guardianId`       | personal          | datos del acudiente                                                                                                                                                                    | `200 { guardianId }` (actualiza `fullName` en los jugadores vinculados, en la misma transacción)       |
+| Método y ruta                                        | Quién              | Cuerpo / query                                                                                                                                                                                           | Respuesta                                                                                        |
+| ---------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `POST /tenants/:tenantId/players`                    | personal           | `{ firstNames, lastNames, document?, birthDate, groupId, emergencyContact, medical?, guardians: ({ guardianId } \| { guardian: {...} }) & { relationship, isPaymentResponsible }[], confirmDuplicate? }` | `201 { playerId, status: "preinscrito", createdGuardianIds }`                                    |
+| `GET /tenants/:tenantId/players`                     | personal, profesor | `?venueId \| categoryId \| groupId` (uno como máximo), `status?`, `cursor?`, `limit?` (50 por defecto, 100 como máximo)                                                                                  | `200 { players: PlayerSummary[], nextCursor }`                                                   |
+| `GET /tenants/:tenantId/players/search-index`        | personal, profesor | —                                                                                                                                                                                                        | `200 { entries: { id, fullName, documentNumber?, guardianNames?, status, groupId }[] }`          |
+| `GET /tenants/:tenantId/players/:playerId`           | personal, profesor | —                                                                                                                                                                                                        | `200` ficha (la del profesor va sin los campos restringidos)                                     |
+| `PUT /tenants/:tenantId/players/:playerId`           | personal           | datos personales, de emergencia y médicos                                                                                                                                                                | `200 { playerId }`                                                                               |
+| `PUT /tenants/:tenantId/players/:playerId/placement` | personal           | `{ groupId, reason? }`                                                                                                                                                                                   | `200 { playerId, groupId, venueId, categoryId }`                                                 |
+| `PATCH /tenants/:tenantId/players/:playerId/status`  | personal           | `{ status, reason? }`                                                                                                                                                                                    | `200 { playerId, status }`                                                                       |
+| `PUT /tenants/:tenantId/players/:playerId/guardians` | personal           | `{ guardians: [...] }` (mismo formato que al crear; reemplaza el conjunto)                                                                                                                               | `200 { playerId, createdGuardianIds }`                                                           |
+| `PUT /tenants/:tenantId/players/:playerId/consent`   | personal           | `{ guardianId }` (debe estar vinculado)                                                                                                                                                                  | `200 { playerId, dataConsent }`                                                                  |
+| `GET /tenants/:tenantId/players/:playerId/history`   | personal, profesor | —                                                                                                                                                                                                        | `200 { entries }` (más recientes primero)                                                        |
+| `GET /tenants/:tenantId/guardians`                   | personal           | `?documentType&documentNumber`                                                                                                                                                                           | `200 { guardian \| null }` (el coordinador solo si está vinculado a un jugador de sus sedes)     |
+| `PUT /tenants/:tenantId/guardians/:guardianId`       | personal           | datos del acudiente                                                                                                                                                                                      | `200 { guardianId }` (actualiza `fullName` en los jugadores vinculados, en la misma transacción) |
 
 Reglas de las rutas:
 
@@ -259,14 +259,14 @@ TDD en cada paso (primero el test que falla). Un commit convencional por paso. C
 
 ## Risks
 
-| Riesgo                                                                          | Mitigación                                                                                                                                                       |
-| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dos inscripciones simultáneas con el mismo documento pasan la verificación      | El riesgo es bajo con el volumen del piloto. Si aparece, se agrega un documento llave por `documentKey` (decisión anotada)                                       |
+| Riesgo                                                                          | Mitigación                                                                                                                                                              |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dos inscripciones simultáneas con el mismo documento pasan la verificación      | El riesgo es bajo con el volumen del piloto. Si aparece, se agrega un documento llave por `documentKey` (decisión anotada)                                              |
 | Se cierra un grupo con jugadores activos                                        | Queda fuera de esta spec. Al mover o activar se exige un grupo activo, y la regla de cierre se decide en un cambio a la spec 02, junto con la del alcance de la spec 05 |
-| Datos de menores en `dev`                                                       | Solo datos ficticios en el seed y el smoke test. Q12 debe resolverse antes de cargar datos reales                                                                |
-| Un índice compuesto faltante hace fallar la lista en `dev`                      | Los tests de integración usan los índices del archivo, y el deploy incluye `firestore` (ver `docs/guias/despliegue-con-red-inestable.md`)                        |
-| El índice liviano crece con miles de jugadores                                  | Es aceptado por D-10. Se pasa a un buscador de servidor después del piloto                                                                                       |
-| El cliente filtra un jugador por el `venueId` copiado y el grupo cambia de sede | El `venueId` del grupo es inmutable (spec 02), así que la copia no se desincroniza                                                                               |
+| Datos de menores en `dev`                                                       | Solo datos ficticios en el seed y el smoke test. Q12 debe resolverse antes de cargar datos reales                                                                       |
+| Un índice compuesto faltante hace fallar la lista en `dev`                      | Los tests de integración usan los índices del archivo, y el deploy incluye `firestore` (ver `docs/guias/despliegue-con-red-inestable.md`)                               |
+| El índice liviano crece con miles de jugadores                                  | Es aceptado por D-10. Se pasa a un buscador de servidor después del piloto                                                                                              |
+| El cliente filtra un jugador por el `venueId` copiado y el grupo cambia de sede | El `venueId` del grupo es inmutable (spec 02), así que la copia no se desincroniza                                                                                      |
 
 ## What is **not** in this spec
 
