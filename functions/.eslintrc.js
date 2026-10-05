@@ -47,6 +47,7 @@ module.exports = {
     "plugin:import/typescript",
     "google",
     "plugin:@typescript-eslint/recommended",
+    "prettier",
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
@@ -64,18 +65,9 @@ module.exports = {
     "/build.mjs",
   ],
   rules: {
-    "quotes": ["error", "double"],
     "import/no-unresolved": 0,
-    "indent": ["error", 2],
     // Express exposes its router as a factory function, not a constructor.
     "new-cap": ["error", {"capIsNewExceptions": ["Router"]}],
-    // A module path cannot be wrapped, and layered paths are long.
-    "max-len": ["error", {
-      "code": 80,
-      "tabWidth": 2,
-      "ignoreUrls": true,
-      "ignorePattern": "^\\} from \"|^import .* from \"",
-    }],
     // TypeScript types already document signatures.
     "require-jsdoc": 0,
     "valid-jsdoc": 0,
