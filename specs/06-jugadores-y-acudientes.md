@@ -1,6 +1,6 @@
 # SPEC 06 — Jugadores y acudientes (ficha, inscripción por el personal, estados, búsqueda)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 02, SPEC 04 y SPEC 05. Cubre el núcleo de §7.3 y §7.4 de `docs/producto.md` y D-10 del plan técnico.
 > **Date:** 2026-10-04
 > **Objective:** Que el personal de una organización pueda inscribir jugadores con sus acudientes, ubicarlos en un grupo, cambiar su estado y encontrarlos, todo por rutas de un módulo nuevo `player`.

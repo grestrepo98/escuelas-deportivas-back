@@ -9,11 +9,11 @@ módulo (ADR 0009). Región fija `us-central1` (ADR 0003).
 
 ```
 src/
-├── index.ts                      # setGlobalOptions + exporta las 3 APIs
+├── index.ts                      # setGlobalOptions + exporta las 4 APIs
 ├── shared/                       # domain (DomainError, Clock) · application (UnitOfWork)
 │   └── infrastructure/           # admin, unit of work, clock
 │       └── http/                 # create-api, authenticate, error-handler, parse, device
-├── audit/ membership/ tenant/ structure/
+├── audit/ membership/ tenant/ structure/ player/
 │   ├── domain/                   # entidades y reglas puras
 │   ├── application/              # casos de uso, puertos y testing/ (dobles en memoria)
 │   └── infrastructure/
@@ -35,7 +35,7 @@ Los tests viven junto al código: `*.test.ts` (unitarios) y
 
 ## APIs y rutas
 
-Tres Cloud Functions `onRequest`, una por módulo, cada una con una app Express
+Cuatro Cloud Functions `onRequest`, una por módulo, cada una con una app Express
 adentro. Una ruta nueva se agrega al `router.ts` del módulo, no como function nueva.
 La URL base de una API es `https://us-central1-<proyecto>.cloudfunctions.net/<api>`
 (en el emulador, `http://127.0.0.1:5001/<proyecto>/us-central1/<api>`).
@@ -54,10 +54,23 @@ La URL base de una API es `https://us-central1-<proyecto>.cloudfunctions.net/<ap
 | `structureApi` | `POST`, `PUT …/:categoryId` y `PATCH …/:categoryId/status` bajo `/categories` | `owner` activo del tenant | Igual, para categorías (`birthYears` puede ir vacío) |
 | `structureApi` | `POST`, `PUT …/:groupId` y `PATCH …/:groupId/status` bajo `/groups` | `owner` activo del tenant | Igual, para grupos. Sede y categoría deben estar activas; `venueId` solo se envía al crear y la sede no cambia |
 | `structureApi` | `GET /tenants/:tenantId/structure?includeClosed=true` | `owner`, `accountant`, `coordinator`, `teacher` | Árbol de sedes, categorías y grupos filtrado por rol y alcance. `includeClosed` incluye lo cerrado |
+| `playerApi` | `POST /tenants/:tenantId/players` | personal (`owner`, `accountant`, `coordinator` en sus sedes) | Inscribe un jugador `preinscrito` en un grupo (la sede y la categoría se copian) y vincula o crea sus acudientes en una transacción (`201`). Documento repetido: `409` con el `playerId`; mismo nombre y fecha: `409` con candidatos, salvo `confirmDuplicate` |
+| `playerApi` | `GET /tenants/:tenantId/players` | personal y `teacher` (sus grupos) | Lista paginada por cursor (`limit` 50, máximo 100), ordenada por nombre. Un filtro de ubicación (`venueId`, `categoryId` o `groupId`) y `status`; dos filtros de ubicación son `400` |
+| `playerApi` | `GET /tenants/:tenantId/players/search-index` | personal y `teacher` | Campos livianos de todos los jugadores visibles para buscar en el cliente. Sin documento ni acudientes para el profesor |
+| `playerApi` | `GET /tenants/:tenantId/players/:playerId` | personal y `teacher` | La ficha; la del profesor va sin `document`, `guardians` ni `dataConsent` |
+| `playerApi` | `PUT /tenants/:tenantId/players/:playerId` | personal | Edita datos personales, de emergencia y médicos |
+| `playerApi` | `PUT …/players/:playerId/placement` | personal | Cambia de grupo (origen y destino en las sedes del coordinador) y deja historial |
+| `playerApi` | `PATCH …/players/:playerId/status` | personal | Cambia el estado (`preinscrito`, `activo`, `pausado`, `retirado`) con la tabla de transiciones; activar exige responsable de pago y consentimiento |
+| `playerApi` | `PUT …/players/:playerId/guardians` | personal | Reemplaza los acudientes del jugador (existentes por id o nuevos en línea) |
+| `playerApi` | `PUT …/players/:playerId/consent` | personal | Registra el consentimiento de datos de uno de sus acudientes |
+| `playerApi` | `GET …/players/:playerId/history` | personal y `teacher` | Cambios de grupo y de estado, el más reciente primero |
+| `playerApi` | `GET /tenants/:tenantId/guardians?documentType&documentNumber` | personal | Busca un acudiente por documento (`{guardian: null}` si no existe o el coordinador no lo alcanza) |
+| `playerApi` | `PUT /tenants/:tenantId/guardians/:guardianId` | personal | Edita al acudiente y actualiza su nombre en los jugadores vinculados |
 
 Cada escritura deja exactamente una entrada de bitácora en la misma transacción.
 Detalle de las reglas en `docs/adr/0007-estructura-de-la-organizacion.md` (estructura)
-y `docs/adr/0010-usuarios-invitacion-y-alcance.md` (usuarios y alcance). La
+`docs/adr/0010-usuarios-invitacion-y-alcance.md` (usuarios y alcance) y
+`docs/adr/0011-jugadores-y-acudientes.md` (jugadores, acudientes, cursor e índices). La
 invitación no envía correo: el dueño comparte el enlace de restablecimiento.
 
 El contrato de cada ruta vive en el `schema.ts` junto a su handler: el `tenantId`
