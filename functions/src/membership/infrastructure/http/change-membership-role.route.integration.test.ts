@@ -98,11 +98,11 @@ describe("PATCH /tenants/:tenantId/memberships/:uid/role — success", () => {
     expect(entry.at).toBeDefined();
   });
 
-  it("keeps the target's scope", async () => {
+  it("empties the scope of a coordinator who becomes an accountant", async () => {
     await change(ownerA, validInput());
     expect(
       (await repo.get(coordinator.uid, "tenant-a"))!.scope.venueIds,
-    ).toEqual(["v1"]);
+    ).toEqual([]);
   });
 });
 
