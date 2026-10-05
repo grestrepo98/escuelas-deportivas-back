@@ -1,4 +1,15 @@
 import {ROLES, type Role} from "../membership/domain/role.js";
+import type {ContactPreference, Guardian} from "../player/domain/guardian.js";
+import {documentKey, nameKey} from "../player/domain/normalize.js";
+import type {
+  PersonDocument,
+  Player,
+  PlayerStatus,
+} from "../player/domain/player.js";
+import {toGuardianDoc} from "../player/infrastructure/firestore/guardian-mapper.js";
+import {toPlayerDoc} from "../player/infrastructure/firestore/player-mapper.js";
+import {FirestoreGuardianRepository} from "../player/infrastructure/firestore/firestore-guardian-repository.js";
+import {FirestorePlayerRepository} from "../player/infrastructure/firestore/firestore-player-repository.js";
 import {
   type Category,
   type Group,
@@ -6,16 +17,18 @@ import {
   type Venue,
 } from "../structure/domain/structure.js";
 import {type Membership, type Scope} from "../membership/domain/membership.js";
-import {type StructureRepository} from "../structure/application/structure-repository.js";
 import type {Auth} from "firebase-admin/auth";
-import {Timestamp, type Firestore} from "firebase-admin/firestore";
+import {
+  Timestamp,
+  type DocumentData,
+  type Firestore,
+} from "firebase-admin/firestore";
 import {FirestoreMembershipRepository} from "../membership/infrastructure/firestore/firestore-membership-repository.js";
 import {FirestoreStructureRepository} from "../structure/infrastructure/firestore/firestore-structure-repository.js";
 import {
   categoryMapper,
   groupMapper,
   venueMapper,
-  type StructureMapper,
 } from "../structure/infrastructure/firestore/structure-mapper.js";
 
 export const DEV_PROJECT_ID = "escuelas-deportivas-dev";
@@ -27,14 +40,14 @@ export const SEED_TENANTS = [
 ] as const;
 
 // Fixed ids so the seed is idempotent and the users' scope can point at them.
-const VENUE_NORTE = "seed-venue-norte";
-const VENUE_SUR = "seed-venue-sur";
+export const VENUE_NORTE = "seed-venue-norte";
+export const VENUE_SUR = "seed-venue-sur";
 const VENUE_B = "seed-venue-b";
 const CATEGORY_SUB10 = "seed-category-sub10";
 const CATEGORY_SUB12 = "seed-category-sub12";
-const GROUP_NORTE_SUB10 = "seed-group-norte-sub10";
-const GROUP_NORTE_SUB12 = "seed-group-norte-sub12";
-const GROUP_SUR_SUB10 = "seed-group-sur-sub10";
+export const GROUP_NORTE_SUB10 = "seed-group-norte-sub10";
+export const GROUP_NORTE_SUB12 = "seed-group-norte-sub12";
+export const GROUP_SUR_SUB10 = "seed-group-sur-sub10";
 
 export type SeedVenue = {
   id: string;
@@ -134,6 +147,210 @@ export const SEED_GROUPS: SeedGroup[] = [
     ],
   },
 ];
+
+// Fictitious people only (spec 06): no real data of minors goes into `dev`
+// while Q12 is open. Every document number and every address is invented.
+export type SeedGuardian = {
+  id: string;
+  tenantId: string;
+  firstNames: string;
+  lastNames: string;
+  document: PersonDocument;
+  phone: string;
+  email: string;
+  preferredContact: ContactPreference;
+};
+
+export type SeedPlayer = {
+  id: string;
+  tenantId: string;
+  groupId: string;
+  firstNames: string;
+  lastNames: string;
+  birthDate: string;
+  document: PersonDocument | null;
+  status: PlayerStatus;
+  statusReason: string | null;
+  guardians: {
+    guardianId: string;
+    relationship: string;
+    isPaymentResponsible: boolean;
+  }[];
+  consentBy: string | null; // the guardian who gave the data consent
+};
+
+const guardian = (
+  n: number,
+  firstNames: string,
+  lastNames: string,
+  preferredContact: ContactPreference = "whatsapp",
+): SeedGuardian => ({
+  id: `seed-guardian-${n}`,
+  tenantId: "tenant-a",
+  firstNames,
+  lastNames,
+  document: {type: "CC", number: `9000000${String(n).padStart(2, "0")}`},
+  phone: `30000000${String(n).padStart(2, "0")}`,
+  email: `acudiente.${n}@seed.escuelas.test`,
+  preferredContact,
+});
+
+export const SEED_GUARDIANS: SeedGuardian[] = [
+  guardian(1, "Marta", "Mora"),
+  guardian(2, "Jorge", "Ríos", "phone"),
+  guardian(3, "Paola", "Pardo"),
+  guardian(4, "Andrés", "Castro"),
+  guardian(5, "Lucía", "Vega", "email"),
+  guardian(6, "Carolina", "León"),
+  guardian(7, "Felipe", "Herrera", "phone"),
+  guardian(8, "Natalia", "Díaz"),
+  guardian(9, "Ricardo", "Vargas", "email"),
+  guardian(10, "Diana", "Roa"),
+];
+
+const link = (
+  n: number,
+  relationship: string,
+  isPaymentResponsible: boolean,
+) => ({
+  guardianId: `seed-guardian-${n}`,
+  relationship,
+  isPaymentResponsible,
+});
+
+const player = (
+  n: number,
+  groupId: string,
+  firstNames: string,
+  lastNames: string,
+  birthDate: string,
+  rest: Partial<SeedPlayer> & Pick<SeedPlayer, "status" | "guardians">,
+): SeedPlayer => ({
+  id: `seed-player-${n}`,
+  tenantId: "tenant-a",
+  groupId,
+  firstNames,
+  lastNames,
+  birthDate,
+  document: {type: "TI", number: `10000000${String(n).padStart(2, "0")}`},
+  statusReason: null,
+  consentBy: null,
+  ...rest,
+});
+
+// Three players per group, with every status. Two are siblings (they share a
+// guardian) and one has no document yet.
+export const SEED_PLAYERS: SeedPlayer[] = [
+  player(1, GROUP_NORTE_SUB10, "Santiago", "Ríos Mora", "2016-03-14", {
+    status: "activo",
+    guardians: [link(1, "madre", true), link(2, "padre", false)],
+    consentBy: "seed-guardian-1",
+  }),
+  player(2, GROUP_NORTE_SUB10, "Valentina", "Ríos Mora", "2015-08-02", {
+    status: "activo",
+    guardians: [link(1, "madre", true), link(2, "padre", false)],
+    consentBy: "seed-guardian-1",
+  }),
+  player(3, GROUP_NORTE_SUB10, "Mateo", "Gómez Pardo", "2016-11-21", {
+    document: null,
+    status: "preinscrito",
+    guardians: [link(3, "madre", true)],
+  }),
+  player(4, GROUP_NORTE_SUB12, "Samuel", "Castro Vega", "2014-01-30", {
+    status: "activo",
+    guardians: [link(4, "padre", true), link(5, "madre", false)],
+    consentBy: "seed-guardian-4",
+  }),
+  player(5, GROUP_NORTE_SUB12, "Isabela", "Torres León", "2013-06-09", {
+    status: "pausado",
+    statusReason: "Lesión de rodilla",
+    guardians: [link(6, "madre", true)],
+    consentBy: "seed-guardian-6",
+  }),
+  player(6, GROUP_NORTE_SUB12, "Daniel", "Herrera Ruiz", "2014-09-17", {
+    status: "preinscrito",
+    guardians: [link(7, "padre", true)],
+  }),
+  player(7, GROUP_SUR_SUB10, "Emilia", "Suárez Díaz", "2015-04-25", {
+    status: "activo",
+    guardians: [link(8, "madre", true)],
+    consentBy: "seed-guardian-8",
+  }),
+  player(8, GROUP_SUR_SUB10, "Tomás", "Vargas Peña", "2016-02-08", {
+    status: "retirado",
+    statusReason: "Traslado de ciudad",
+    guardians: [link(9, "padre", true)],
+    consentBy: "seed-guardian-9",
+  }),
+  player(9, GROUP_SUR_SUB10, "Sofía", "Mejía Roa", "2015-12-19", {
+    status: "preinscrito",
+    guardians: [link(10, "madre", true)],
+  }),
+];
+
+// Fixed, so a seeded record is byte-identical on every run.
+const SEED_DATE = new Date("2026-01-15T12:00:00Z");
+
+const guardianOf = (id: string): SeedGuardian => {
+  const found = SEED_GUARDIANS.find((g) => g.id === id);
+  if (!found) throw new Error(`Seed guardian ${id} is not defined`);
+  return found;
+};
+
+function toGuardian(seed: SeedGuardian, now: Date): Guardian {
+  return {
+    ...seed,
+    documentKey: documentKey(seed.document),
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function toPlayer(seed: SeedPlayer, ownerUid: string, now: Date): Player {
+  const group = SEED_GROUPS.find((g) => g.id === seed.groupId);
+  if (!group) throw new Error(`Seed group ${seed.groupId} is not defined`);
+  // Same key order the mapper reads back, so the idempotency check (which
+  // compares serialized documents) sees an untouched player as unchanged.
+  const links = seed.guardians.map((l) => {
+    const g = guardianOf(l.guardianId);
+    return {
+      guardianId: l.guardianId,
+      fullName: `${g.firstNames} ${g.lastNames}`,
+      relationship: l.relationship,
+      isPaymentResponsible: l.isPaymentResponsible,
+    };
+  });
+  const contact = guardianOf(seed.guardians[0].guardianId);
+  return {
+    id: seed.id,
+    tenantId: seed.tenantId,
+    firstNames: seed.firstNames,
+    lastNames: seed.lastNames,
+    nameKey: nameKey(seed.firstNames, seed.lastNames),
+    document: seed.document,
+    documentKey: seed.document ? documentKey(seed.document) : null,
+    birthDate: seed.birthDate,
+    groupId: group.id,
+    venueId: group.venueId,
+    categoryId: group.categoryId,
+    status: seed.status,
+    statusReason: seed.statusReason,
+    joinedAt: SEED_DATE,
+    emergencyContact: {
+      name: `${contact.firstNames} ${contact.lastNames}`,
+      phone: contact.phone,
+      relationship: seed.guardians[0].relationship,
+    },
+    medical: {},
+    guardians: links,
+    guardianIds: links.map((l) => l.guardianId),
+    dataConsent: seed.consentBy
+      ? {guardianId: seed.consentBy, recordedBy: ownerUid, at: SEED_DATE}
+      : null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 export type SeedUser = {
   uid: string;
@@ -246,6 +463,8 @@ export type SeedSummary = {
   users: number;
   memberships: Counts;
   structure: Counts;
+  guardians: Counts;
+  players: Counts;
 };
 
 type SeedDeps = {
@@ -265,25 +484,30 @@ type Stored = {
   updatedAt: Date;
 };
 
+type Repo<T> = {
+  get(tenantId: string, id: string): Promise<T | null>;
+  save(entity: T): Promise<void>;
+};
+
 // The fields the seed owns, as a string: everything but the timestamps.
-const baseline = <T extends Stored>(mapper: StructureMapper<T>, entity: T) => {
-  const fields = mapper.toDoc(entity); // a fresh object, safe to trim
+const baseline = <T>(toDoc: (entity: T) => DocumentData, entity: T) => {
+  const fields = toDoc(entity); // a fresh object, safe to trim
   delete fields.createdAt;
   delete fields.updatedAt;
   return JSON.stringify(fields);
 };
 
 // Creates missing documents, restores drifted ones and leaves untouched ones
-// alone (timestamps included), always as active.
-async function syncStructure<T extends Stored>(
-  repo: StructureRepository<T>,
-  mapper: StructureMapper<T>,
+// alone (timestamps included), always as the seed defines them.
+async function syncDocuments<T extends Stored>(
+  repo: Repo<T>,
+  toDoc: (entity: T) => DocumentData,
   desired: T[],
   counts: Counts,
 ): Promise<void> {
   for (const item of desired) {
     const existing = await repo.get(item.tenantId, item.id);
-    if (existing && baseline(mapper, existing) === baseline(mapper, item)) {
+    if (existing && baseline(toDoc, existing) === baseline(toDoc, item)) {
       counts.unchanged++;
       continue;
     }
@@ -333,27 +557,45 @@ export async function runSeed(deps: SeedDeps): Promise<SeedSummary> {
 
   const structure = {created: 0, updated: 0, unchanged: 0};
   const stamps = {createdAt: now, updatedAt: now};
-  await syncStructure(
+  await syncDocuments(
     new FirestoreStructureRepository<Venue>(db, "venues", venueMapper),
-    venueMapper,
+    venueMapper.toDoc,
     SEED_VENUES.map((v) => ({...v, status: "active" as const, ...stamps})),
     structure,
   );
-  await syncStructure(
+  await syncDocuments(
     new FirestoreStructureRepository<Category>(
       db,
       "categories",
       categoryMapper,
     ),
-    categoryMapper,
+    categoryMapper.toDoc,
     SEED_CATEGORIES.map((c) => ({...c, status: "active" as const, ...stamps})),
     structure,
   );
-  await syncStructure(
+  await syncDocuments(
     new FirestoreStructureRepository<Group>(db, "groups", groupMapper),
-    groupMapper,
+    groupMapper.toDoc,
     SEED_GROUPS.map((g) => ({...g, status: "active" as const, ...stamps})),
     structure,
+  );
+
+  const ownerUid = SEED_USERS.find(
+    (u) => u.tenantId === "tenant-a" && u.role === "owner",
+  )!.uid;
+  const guardians = {created: 0, updated: 0, unchanged: 0};
+  await syncDocuments(
+    new FirestoreGuardianRepository(db),
+    toGuardianDoc,
+    SEED_GUARDIANS.map((g) => toGuardian(g, now)),
+    guardians,
+  );
+  const players = {created: 0, updated: 0, unchanged: 0};
+  await syncDocuments(
+    new FirestorePlayerRepository(db),
+    toPlayerDoc,
+    SEED_PLAYERS.map((p) => toPlayer(p, ownerUid, now)),
+    players,
   );
 
   const memberships = {created: 0, updated: 0, unchanged: 0};
@@ -387,5 +629,7 @@ export async function runSeed(deps: SeedDeps): Promise<SeedSummary> {
     users: SEED_USERS.length,
     memberships,
     structure,
+    guardians,
+    players,
   };
 }

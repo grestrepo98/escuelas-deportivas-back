@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -26,6 +27,12 @@ const DOCS = [
   "tenants/tenant-b/venues/venue-2",
   "tenants/tenant-b/categories/category-2",
   "tenants/tenant-b/groups/group-2",
+  "tenants/tenant-a/players/player-1",
+  "tenants/tenant-a/players/player-1/history/entry-1",
+  "tenants/tenant-a/guardians/guardian-1",
+  "tenants/tenant-b/players/player-2",
+  "tenants/tenant-b/players/player-2/history/entry-2",
+  "tenants/tenant-b/guardians/guardian-2",
   "memberships/user-a_tenant-a",
   "memberships/user-b_tenant-b",
 ];
@@ -38,8 +45,17 @@ const COLLECTIONS = [
   "tenants/tenant-b/venues",
   "tenants/tenant-b/categories",
   "tenants/tenant-b/groups",
+  "tenants/tenant-a/players",
+  "tenants/tenant-a/players/player-1/history",
+  "tenants/tenant-a/guardians",
+  "tenants/tenant-b/players",
+  "tenants/tenant-b/players/player-2/history",
+  "tenants/tenant-b/guardians",
   "memberships",
 ];
+
+// A collection group query would reach every tenant at once.
+const COLLECTION_GROUPS = ["players", "history", "guardians"];
 
 let env: RulesTestEnvironment;
 
@@ -82,6 +98,13 @@ describe.each(CALLERS)("firestore rules — %s", (caller) => {
   it.each(COLLECTIONS)("cannot list %s", async (path) => {
     await assertFails(getDocs(collection(db(), path)));
   });
+
+  it.each(COLLECTION_GROUPS)(
+    "cannot query the collection group %s",
+    async (name) => {
+      await assertFails(getDocs(collectionGroup(db(), name)));
+    },
+  );
 
   it.each(COLLECTIONS)("cannot add a document to %s", async (path) => {
     await assertFails(addDoc(collection(db(), path), {hacked: true}));

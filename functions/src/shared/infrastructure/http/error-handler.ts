@@ -29,9 +29,13 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, next) => {
     return;
   }
   if (error instanceof DomainError) {
-    res
-      .status(STATUSES[error.code])
-      .json({error: {code: error.code, message: error.message}});
+    res.status(STATUSES[error.code]).json({
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details && {details: error.details}),
+      },
+    });
     return;
   }
   if (isBodyError(error)) {

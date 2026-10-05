@@ -1,6 +1,9 @@
 import type {AuditLogWriter} from "../../audit/application/audit-log-writer.js";
 import type {MembershipRepository} from "../../membership/application/membership-repository.js";
 import type {TenantRepository} from "../../tenant/application/tenant-repository.js";
+import type {GuardianRepository} from "../../player/application/guardian-repository.js";
+import type {PlayerHistoryWriter} from "../../player/application/player-history-writer.js";
+import type {PlayerRepository} from "../../player/application/player-repository.js";
 import type {
   CategoryRepository,
   GroupRepository,
@@ -9,6 +12,9 @@ import type {
 
 // Repositories bound to the running transaction.
 export type TransactionContext = {
+  players: PlayerRepository;
+  guardians: GuardianRepository;
+  playerHistory: PlayerHistoryWriter;
   memberships: MembershipRepository;
   auditLog: AuditLogWriter;
   tenants: TenantRepository;

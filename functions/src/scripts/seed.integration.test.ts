@@ -7,10 +7,15 @@ import {
   runSeed,
   SEED_CATEGORIES,
   SEED_GROUPS,
+  SEED_GUARDIANS,
+  SEED_PLAYERS,
   SEED_TENANTS,
   SEED_USERS,
   SEED_VENUES,
 } from "./seed-lib.js";
+import {documentKey, nameKey} from "../player/domain/normalize.js";
+import {listPlayers} from "../player/infrastructure/firestore/player-list-query.js";
+import {FirestorePlayerRepository} from "../player/infrastructure/firestore/firestore-player-repository.js";
 import {clearAuth} from "../shared/infrastructure/testing/emulator-helpers.js";
 import {
   clearFirestore,
@@ -30,6 +35,8 @@ const snapshot = async () => {
       `tenants/${t.id}/venues`,
       `tenants/${t.id}/categories`,
       `tenants/${t.id}/groups`,
+      `tenants/${t.id}/guardians`,
+      `tenants/${t.id}/players`,
     ]),
   ];
   const out: Record<string, unknown> = {};
@@ -221,6 +228,16 @@ describe("runSeed", () => {
       unchanged:
         SEED_VENUES.length + SEED_CATEGORIES.length + SEED_GROUPS.length,
     });
+    expect(summary.guardians).toEqual({
+      created: 0,
+      updated: 0,
+      unchanged: SEED_GUARDIANS.length,
+    });
+    expect(summary.players).toEqual({
+      created: 0,
+      updated: 0,
+      unchanged: SEED_PLAYERS.length,
+    });
   });
 
   it("restores a closed or renamed structure document to the baseline", async () => {
@@ -340,5 +357,206 @@ describe("parseSeedArgs", () => {
         SEED_PASSWORD: "a-strong-pass",
       }),
     ).toThrow(/emulator/i);
+  });
+});
+
+describe("seed players and guardians — definition", () => {
+  it("defines the players and the guardians they need, all in tenant-a", () => {
+    expect(SEED_PLAYERS).toHaveLength(9);
+    expect(SEED_GUARDIANS.length).toBeGreaterThanOrEqual(6);
+    for (const item of [...SEED_PLAYERS, ...SEED_GUARDIANS]) {
+      expect(item.tenantId).toBe("tenant-a");
+    }
+  });
+
+  it("puts each player in a seeded group, in the age range of its category", () => {
+    for (const player of SEED_PLAYERS) {
+      const group = SEED_GROUPS.find((g) => g.id === player.groupId)!;
+      expect(group).toBeDefined();
+      const category = SEED_CATEGORIES.find((c) => c.id === group.categoryId)!;
+      const year = Number(player.birthDate.slice(0, 4));
+      expect(category.birthYears).toContain(year);
+    }
+  });
+
+  it("covers every group and every status", () => {
+    for (const group of SEED_GROUPS) {
+      expect(SEED_PLAYERS.some((p) => p.groupId === group.id)).toBe(true);
+    }
+    expect(new Set(SEED_PLAYERS.map((p) => p.status))).toEqual(
+      new Set(["preinscrito", "activo", "pausado", "retirado"]),
+    );
+  });
+
+  it("links only seeded guardians, once each, with at most one responsible", () => {
+    const known = new Set(SEED_GUARDIANS.map((g) => g.id));
+    for (const player of SEED_PLAYERS) {
+      const ids = player.guardians.map((g) => g.guardianId);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const id of ids) expect(known.has(id)).toBe(true);
+      expect(
+        player.guardians.filter((g) => g.isPaymentResponsible).length,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("lets a guardian have several players (siblings)", () => {
+    const counts = new Map<string, number>();
+    for (const player of SEED_PLAYERS) {
+      for (const link of player.guardians) {
+        counts.set(link.guardianId, (counts.get(link.guardianId) ?? 0) + 1);
+      }
+    }
+    expect(Math.max(...counts.values())).toBeGreaterThan(1);
+  });
+
+  it("makes every active player ready: one responsible and a consent from a linked guardian", () => {
+    for (const player of SEED_PLAYERS.filter((p) => p.status === "activo")) {
+      expect(
+        player.guardians.filter((g) => g.isPaymentResponsible),
+      ).toHaveLength(1);
+      expect(player.guardians.map((g) => g.guardianId)).toContain(
+        player.consentBy,
+      );
+    }
+  });
+
+  it("gives a reason to every paused or withdrawn player", () => {
+    for (const player of SEED_PLAYERS) {
+      if (player.status === "pausado" || player.status === "retirado") {
+        expect(player.statusReason).toBeTruthy();
+      }
+    }
+  });
+
+  it("uses unique ids and unique fictitious documents", () => {
+    for (const items of [SEED_PLAYERS, SEED_GUARDIANS]) {
+      expect(new Set(items.map((i) => i.id)).size).toBe(items.length);
+    }
+    const keys = [
+      ...SEED_PLAYERS.flatMap((p) =>
+        p.document ? [documentKey(p.document)] : [],
+      ),
+      ...SEED_GUARDIANS.map((g) => documentKey(g.document)),
+    ];
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("uses only fictitious contact data", () => {
+    for (const guardian of SEED_GUARDIANS) {
+      expect(guardian.email).toMatch(/@seed\.escuelas\.test$/);
+    }
+  });
+});
+
+describe("runSeed — players and guardians", () => {
+  const playerPath = (id: string) => `tenants/tenant-a/players/${id}`;
+  const guardianPath = (id: string) => `tenants/tenant-a/guardians/${id}`;
+
+  it("creates the guardians and the players with their derived fields", async () => {
+    const summary = await runSeed({db, auth, password: PASSWORD});
+    expect(summary.guardians.created).toBe(SEED_GUARDIANS.length);
+    expect(summary.players.created).toBe(SEED_PLAYERS.length);
+
+    const repo = new FirestorePlayerRepository(db);
+    for (const seeded of SEED_PLAYERS) {
+      const group = SEED_GROUPS.find((g) => g.id === seeded.groupId)!;
+      const stored = (await repo.get("tenant-a", seeded.id))!;
+      expect(stored).toMatchObject({
+        firstNames: seeded.firstNames,
+        lastNames: seeded.lastNames,
+        nameKey: nameKey(seeded.firstNames, seeded.lastNames),
+        birthDate: seeded.birthDate,
+        groupId: group.id,
+        venueId: group.venueId,
+        categoryId: group.categoryId,
+        status: seeded.status,
+        guardianIds: seeded.guardians.map((g) => g.guardianId),
+      });
+      expect(stored.guardians.every((g) => g.fullName.length > 0)).toBe(true);
+      expect(stored.dataConsent === null).toBe(seeded.consentBy === null);
+    }
+  });
+
+  it("does not seed players or guardians in tenant-b", async () => {
+    await runSeed({db, auth, password: PASSWORD});
+    expect((await db.collection("tenants/tenant-b/players").get()).size).toBe(
+      0,
+    );
+    expect((await db.collection("tenants/tenant-b/guardians").get()).size).toBe(
+      0,
+    );
+  });
+
+  it("gives the seeded players to the real list query", async () => {
+    await runSeed({db, auth, password: PASSWORD});
+    const owner = SEED_USERS.find(
+      (u) => u.tenantId === "tenant-a" && u.role === "owner",
+    )!;
+    const {players, nextCursor} = await listPlayers(
+      db,
+      "tenant-a",
+      {
+        uid: owner.uid,
+        tenantId: "tenant-a",
+        role: "owner",
+        status: "active",
+        scope: owner.scope,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {limit: 100},
+    );
+    expect(players).toHaveLength(SEED_PLAYERS.length);
+    expect(nextCursor).toBeNull();
+  });
+
+  it("restores a drifted player to the seed baseline", async () => {
+    await runSeed({db, auth, password: PASSWORD});
+    const seeded = SEED_PLAYERS.find((p) => p.status === "activo")!;
+    await db.doc(playerPath(seeded.id)).update({status: "retirado"});
+
+    const summary = await runSeed({db, auth, password: PASSWORD});
+
+    expect(summary.players.updated).toBe(1);
+    expect((await db.doc(playerPath(seeded.id)).get()).data()?.status).toBe(
+      "activo",
+    );
+  });
+
+  it("restores a drifted guardian", async () => {
+    await runSeed({db, auth, password: PASSWORD});
+    const guardian = SEED_GUARDIANS[0];
+    await db.doc(guardianPath(guardian.id)).update({firstNames: "Cambiado"});
+
+    const summary = await runSeed({db, auth, password: PASSWORD});
+
+    expect(summary.guardians.updated).toBe(1);
+    expect(
+      (await db.doc(guardianPath(guardian.id)).get()).data()?.firstNames,
+    ).toBe(guardian.firstNames);
+  });
+
+  it("keeps the created timestamp of a restored player", async () => {
+    await runSeed({
+      db,
+      auth,
+      password: PASSWORD,
+      now: new Date("2026-01-01T00:00:00Z"),
+    });
+    const seeded = SEED_PLAYERS[0];
+    const before = (await db.doc(playerPath(seeded.id)).get()).data()!
+      .createdAt;
+    await db.doc(playerPath(seeded.id)).update({status: "pausado"});
+
+    await runSeed({
+      db,
+      auth,
+      password: PASSWORD,
+      now: new Date("2026-06-01T00:00:00Z"),
+    });
+
+    const after = (await db.doc(playerPath(seeded.id)).get()).data()!;
+    expect(after.createdAt.isEqual(before)).toBe(true);
   });
 });

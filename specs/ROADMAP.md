@@ -11,7 +11,8 @@
 | 03 `reestructura-modular-functions` | Deuda técnica | Implementada (falta el CI en un PR real y `seed:dev` + `smoke:dev` en `dev`) | Todo el código en `functions/src` por módulo con capas `domain`/`application`/`infrastructure`, fronteras por lint y despliegue a `dev` de la spec 02. Sin cambios de comportamiento |
 | 04 `api-http-por-modulo` | Deuda técnica | Borrador (solo documentación actualizada; falta el código) | Reemplaza las 10 callables por 3 APIs HTTP con Express (`membershipApi`, `tenantApi`, `structureApi`); ADR 0009. Sin cambios de casos de uso ni de reglas |
 | 05 `usuarios-y-alcance` | Fase 1 (parte 2) | Implementada (falta `smoke:dev` en `dev` y el CI en un PR real) | Formato con Prettier y LF; invitar auxiliares, coordinadores y profesores (enlace manual, sin correo), alcance por sede/grupo, activar/desactivar y gancho de C21 (`MembershipDeactivationGuard`); ADR 0010 |
-| 06+ (por crear) | Fase 1 (resto) | Pendiente | Jugadores y acudientes (7.3, 7.4; incluye invitar acudientes y jugadores adultos), documentos (7.5), importación (7.18), plataforma (7.19) |
+| 06 `jugadores-y-acudientes` | Fase 1 (parte 3) | Implementada (falta el deploy a `dev` con `smoke:dev` y el CI en un PR real) | Módulo `player` con `playerApi`: ficha, acudientes como entidad, inscripción por el personal, estados, cambio de grupo, historial, lista por cursor e índice liviano, recorte para el profesor; ADR 0011 |
+| 07+ (por crear) | Fase 1 (resto) | Pendiente | Familias y pagadores autorizados (C15, C4), invitar acudientes y jugadores adultos, documentos (7.5), importación (7.18), plataforma (7.19) |
 | (por crear) | Fase 2 | Pendiente | Dinero |
 | (por crear) | Fase 3 | Pendiente | Cancha, control y endurecimiento |
 
@@ -23,8 +24,8 @@ Desde la spec 04, cada caso de uso nuevo se expone como una ruta en la API HTTP 
 | --- | --- | --- |
 | 7.1 Organización, sedes, estructura | 1 | Cerrar sede no la borra; un grupo, una sola sede |
 | 7.2 Usuarios, roles, accesos | 0 (base) y 1 | Fase 1: invitación, activar/desactivar, alcance (spec 05; acudientes y jugadores adultos esperan a los jugadores) |
-| 7.3 Jugadores e inscripción | 1 | Detección de duplicados; D-10 paginada + índice liviano |
-| 7.4 Acudientes y familias | 1 | |
+| 7.3 Jugadores e inscripción | 1 | Spec 06: inscripción por el personal, detección de duplicados, D-10 paginada + índice liviano. La autoinscripción del acudiente espera |
+| 7.4 Acudientes y familias | 1 | Spec 06: acudientes como entidad (C17). Familias, hermanos y pagadores autorizados, spec 07 |
 | 7.5 Documentos y pólizas | 1 | Signed URLs (D-08); verificar permiso de firma de la cuenta de servicio |
 | 7.6 Conceptos, tarifas, descuentos, becas | 2 | Tarifas versionadas; un solo beneficio activo hasta decidir C14 |
 | 7.7 Cuentas por cobrar | 2 | Función programada de cobros |
