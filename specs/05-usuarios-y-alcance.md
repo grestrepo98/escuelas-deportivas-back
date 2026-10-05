@@ -11,7 +11,18 @@
 
 La spec 01 dejó membresías, roles y el cambio de rol, pero las personas solo entran por el seed y por `tenant:create`. La Fase 1 sigue con jugadores, documentos y pólizas, y todos filtran por el alcance de quien consulta (coordinador por sede, profesor por grupo). Esta spec cierra primero el modelo y la validación del alcance, para que esos módulos lo usen sin reabrirlo.
 
+Antes de escribir código nuevo se arregla el tooling de formato. Hoy `npm run lint` da 3707 errores, todos `linebreak-style`: el índice de git está en LF pero el árbol de trabajo en Windows queda en CRLF por `core.autocrlf=true`, y la regla de Google exige LF. En CI (Linux) no se ve. Además el proyecto no tiene Prettier, así que el formato depende de las reglas de estilo de ESLint. Los pasos 1 a 4 del plan lo resuelven primero, para que todo el código de esta spec nazca ya formateado.
+
 ## Scope
+
+**Tooling (pasos 1 a 4, antes de la funcionalidad):**
+
+- `.gitattributes` (`eol=lf`) y `.editorconfig` en la raíz, para que el árbol de trabajo quede en LF sin importar `core.autocrlf`.
+- Prettier 3 en `functions/` con `eslint-config-prettier`, scripts `format` y `format:check`, y reglas de formato duplicadas fuera de `.eslintrc.js`.
+- Un solo commit de formato mecánico, registrado en `.git-blame-ignore-revs`.
+- `format:check` en `ci.yml` y `npm run lint` sin errores ni advertencias.
+
+**Funcionalidad:**
 
 **In:**
 
@@ -36,6 +47,9 @@ La spec 01 dejó membresías, roles y el cambio de rol, pero las personas solo e
 - Cerrar sedes o grupos que tengan miembros asignados: esa regla pertenece a un cambio de la spec 02 (ver Risks).
 - Cambiar `firestore.rules`, `storage.rules` o `firestore.indexes.json`.
 - Un adaptador real de C21 (necesita la caja de la Fase 2).
+- Cambiar las reglas de ESLint que no son de formato (base de Google, `@typescript-eslint`, fronteras de capas).
+- Formatear con Prettier los `.md`, `.yml` o `.json` del repo: solo `.ts` y `.js` de `functions/`.
+- Hooks de pre-commit (husky, lint-staged).
 
 ## Data model
 
@@ -115,20 +129,30 @@ functions/src/membership/
 
 TDD en cada paso (test que falla primero). Un commit convencional por paso. Cada paso termina con `build`, `lint`, `typecheck` y las suites en verde.
 
-0. **Línea base.** Anotar cuántos tests pasan en `test:unit`, `test:rules` y `test:integration`.
-1. **Regla de alcance.** `domain/scope.ts` y su test: la tabla de arriba, incluidos los casos con listas mezcladas (coordinador con grupos, profesor con sedes) y duplicados.
-2. **Referencias del alcance.** `application/scope-references.ts`: comprueba que cada sede y grupo exista, sea de la organización y esté activo. Tests con los fakes en memoria de la spec 02.
-3. **Puertos y fakes.** `IdentityProvider`, `MembershipDeactivationGuard`, `listByTenant`, sus fakes en `application/testing/` y el adaptador que siempre permite.
-4. **Invitar.** Caso de uso `InviteMember` con tests unitarios: dueño ok, otros roles `403`, cuenta nueva con enlace, cuenta existente sin enlace, cuenta nunca usada con enlace, membresía repetida `409`, alcance inválido, bitácora.
-5. **Alcance, estado y rol.** `SetMembershipScope`, `SetMembershipStatus` (guardia, último dueño, reactivación con alcance caído) y la ampliación de `ChangeMembershipRole`, cada uno con sus tests unitarios.
-6. **Listado.** `ListMemberships` con la visibilidad por rol y sede, con tests unitarios.
-7. **Adaptadores.** `FirebaseIdentityProvider` y `listByTenant` en Firestore, con tests de integración contra el emulador (Auth + Firestore).
-8. **Rutas HTTP.** Handlers, esquemas y router, con tests de integración por HTTP por ruta (ver criterios). Reutilizar `callApi`.
-9. **Humo.** Ampliar `smoke-dev.ts` (invitar, listar, desactivar, comprobar `403` con el mismo token, reactivar) y confirmar `smoke:emulator`.
-10. **Documentación.** ADR 0010, `functions/README.md`, `arquitectura.md`, guía, `ROADMAP.md`, y réplica de `docs/` en los otros dos lugares. Poner la spec en `Implemented`.
+0. **Línea base.** Anotar cuántos tests pasan en `test:unit`, `test:rules` y `test:integration`, y cuántos errores da hoy `npm run lint` (3707 al 2026-10-04, todos `linebreak-style`).
+1. **Saltos de línea.** Agregar `.gitattributes` en la raíz (`* text=auto eol=lf`) y `.editorconfig` (`end_of_line = lf`, indentación de 2, UTF-8, salto final). Convertir el árbol de trabajo a LF sin tocar el índice (que ya está en LF). Comprobar que `git diff` queda vacío y que `git ls-files --eol` no muestra `w/crlf` bajo `functions/`.
+2. **Prettier.** En `functions/`: `prettier` (^3) y `eslint-config-prettier` en `devDependencies`; `.prettierrc.json` (`printWidth: 80`, `bracketSpacing: false`, `trailingComma: "all"`, `endOfLine: "lf"`, comillas dobles); `.prettierignore` (`lib`, `generated`, `node_modules`); scripts `format` y `format:check`. En `.eslintrc.js`, agregar `prettier` al final de `extends` y quitar las reglas de formato duplicadas (`quotes`, `indent`, `max-len`); las reglas de frontera de capas no se tocan.
+3. **Formato mecánico.** Ejecutar `npm run format` una sola vez y confirmarlo en un commit aparte (`style(functions): format with prettier`), sin cambios de lógica. Las suites deben dar los mismos resultados que la línea base. Agregar el hash del commit a `.git-blame-ignore-revs`.
+4. **ESLint limpio y en CI.** `npm run lint` con 0 errores y 0 advertencias. Agregar `npm run format:check` al workflow de CI de `.github/workflows/`. Documentar `format` y `format:check` en `functions/README.md` y `CLAUDE.md` (sección Commands).
+5. **Regla de alcance.** `domain/scope.ts` y su test: la tabla de arriba, incluidos los casos con listas mezcladas (coordinador con grupos, profesor con sedes) y duplicados.
+6. **Referencias del alcance.** `application/scope-references.ts`: comprueba que cada sede y grupo exista, sea de la organización y esté activo. Tests con los fakes en memoria de la spec 02.
+7. **Puertos y fakes.** `IdentityProvider`, `MembershipDeactivationGuard`, `listByTenant`, sus fakes en `application/testing/` y el adaptador que siempre permite.
+8. **Invitar.** Caso de uso `InviteMember` con tests unitarios: dueño ok, otros roles `403`, cuenta nueva con enlace, cuenta existente sin enlace, cuenta nunca usada con enlace, membresía repetida `409`, alcance inválido, bitácora.
+9. **Alcance, estado y rol.** `SetMembershipScope`, `SetMembershipStatus` (guardia, último dueño, reactivación con alcance caído) y la ampliación de `ChangeMembershipRole`, cada uno con sus tests unitarios.
+10. **Listado.** `ListMemberships` con la visibilidad por rol y sede, con tests unitarios.
+11. **Adaptadores.** `FirebaseIdentityProvider` y `listByTenant` en Firestore, con tests de integración contra el emulador (Auth + Firestore).
+12. **Rutas HTTP.** Handlers, esquemas y router, con tests de integración por HTTP por ruta (ver criterios). Reutilizar `callApi`.
+13. **Humo.** Ampliar `smoke-dev.ts` (invitar, listar, desactivar, comprobar `403` con el mismo token, reactivar) y confirmar `smoke:emulator`.
+14. **Documentación.** ADR 0010, `functions/README.md`, `arquitectura.md`, guía, `ROADMAP.md`, y réplica de `docs/` en los otros dos lugares. Poner la spec en `Implemented`.
 
 ## Acceptance criteria
 
+- [ ] `npm run lint` pasa con 0 errores y 0 advertencias en el árbol de trabajo de Windows con `core.autocrlf=true`, y en CI.
+- [ ] `npm run format:check` pasa y el workflow `ci.yml` lo ejecuta.
+- [ ] `git ls-files --eol` no muestra `w/crlf` bajo `functions/` tras un checkout limpio.
+- [ ] `.eslintrc.js` ya no define `quotes`, `indent` ni `max-len`, extiende `prettier` al final, y `lint-boundaries.test.ts` sigue en verde.
+- [ ] El commit de formato (`style(functions): format with prettier`) no cambia lógica: las suites dan los mismos resultados que la línea base, y su hash está en `.git-blame-ignore-revs`.
+- [ ] `format` y `format:check` están documentados en `functions/README.md` y `CLAUDE.md`.
 - [ ] Cada ruta nueva responde por HTTP: sin token → `401`, entrada inválida → `400` (campo faltante, valor fuera de rango, campo extra), usuario de otra organización → `403` sin cambios, y cada rol no autorizado → `403`.
 - [ ] `POST …/memberships` con un correo nuevo crea la cuenta de Auth, la membresía activa y devuelve `passwordResetLink`; con un correo que ya inició sesión en otra organización reutiliza el `uid` y no devuelve enlace.
 - [ ] `POST …/memberships` con un coordinador sin sedes, con un profesor sin grupos, con una sede cerrada o de otra organización, o con un auxiliar con alcance no vacío responde `400` o `409` según el caso y no crea membresía ni bitácora.
@@ -148,6 +172,15 @@ TDD en cada paso (test que falla primero). Un commit convencional por paso. Cada
 
 ## Decisiones
 
+- **Sí: arreglar el tooling dentro de esta spec, antes de la funcionalidad.** Todo el código nuevo nace formateado y el diff de formato no se mezcla con la lógica. _Pedido por el usuario el 2026-10-04._
+- **Sí: `.gitattributes` con `eol=lf`.** Ataca la causa (CRLF en el árbol de trabajo) y funciona igual en Windows, Linux y CI.
+- **No: desactivar `linebreak-style` en ESLint.** Taparía el síntoma y dejaría el repo con saltos de línea mezclados.
+- **Sí: Prettier con `eslint-config-prettier`.** Prettier formatea, ESLint solo revisa lo que no es formato.
+- **No: `eslint-plugin-prettier`.** Duplica los errores de formato dentro de ESLint y lo hace más lento.
+- **Sí: `bracketSpacing: false`, `printWidth: 80`, comillas dobles y `trailingComma: "all"`.** Conservan el estilo actual (`{a}`, 80 columnas) y reducen el diff del commit de formato.
+- **Sí: conservar la base de Google y las fronteras de capas en ESLint.** Solo se quitan `quotes`, `indent` y `max-len`, que Prettier ya gobierna.
+- **Sí: commit de formato aparte con `.git-blame-ignore-revs`.** `git blame` sigue mostrando el cambio de lógica real.
+- **No: husky y lint-staged por ahora.** El CI ya exige `lint` y `format:check`; los hooks se evalúan después.
 - **Sí: invitación con enlace manual, sin correo.** El dueño comparte el enlace; evita depender de Resend, dominio y secretos antes de la Fase 2. _Decidido por el usuario el 2026-10-04._
 - **No: enviar el correo con Resend ahora.** Adelanta Q11 sin cuenta ni dominio disponibles.
 - **No: solo asignar membresía a usuarios ya registrados.** Deja sin resolver cómo entra un coordinador nuevo.
@@ -173,6 +206,9 @@ TDD en cada paso (test que falla primero). Un commit convencional por paso. Cada
 | El enlace de restablecimiento viaja por canales no controlados (WhatsApp) | El enlace es de un solo uso y vence; se documenta en el ADR 0010 y se reemplaza por correo en la Fase 2                                                                                                                                                               |
 | `GET` revela a un coordinador el correo de miembros de su sede            | Aceptado: la matriz de §6 le da "ver" usuarios de su sede; no ve otras sedes                                                                                                                                                                                          |
 | El dueño se desactiva a sí mismo o al último dueño                        | Regla del último dueño activo con test (`409`)                                                                                                                                                                                                                        |
+| El commit de formato toca casi todos los archivos y genera conflictos en ramas abiertas | Hacer los pasos 1 a 4 primero y fusionarlos antes de empezar la funcionalidad; avisar para que las ramas abiertas se actualicen |
+| Prettier y las reglas restantes de Google chocan (p. ej. `object-curly-spacing`, `comma-dangle`) | `eslint-config-prettier` va al final de `extends`; el paso 4 exige 0 errores y 0 advertencias |
+| Alguien con un checkout viejo sigue en CRLF | `.gitattributes` fuerza LF al volver a sacar los archivos; `npm run format` los convierte sin cambiar el índice |
 | Cambiar el contrato de `changeMembershipRole` rompe al front              | El cambio es aditivo (`scope` opcional) y el front aún no llama esa ruta                                                                                                                                                                                              |
 
 ## What is **not** in this spec
@@ -183,3 +219,4 @@ TDD en cada paso (test que falla primero). Un commit convencional por paso. Cada
 - Un adaptador real de C21 (caja abierta).
 - Reglas para cerrar sedes o grupos con miembros asignados.
 - Cambios en `firestore.rules`, `storage.rules` o `firestore.indexes.json`.
+- Hooks de pre-commit, o formatear archivos que no sean `.ts` y `.js` de `functions/`.
