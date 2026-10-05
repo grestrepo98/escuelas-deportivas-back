@@ -1,4 +1,64 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "venueId", "order": "ASCENDING"},
+        {"fieldPath": "nameKey", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "categoryId", "order": "ASCENDING"},
+        {"fieldPath": "nameKey", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "groupId", "order": "ASCENDING"},
+        {"fieldPath": "nameKey", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "nameKey", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "venueId", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "nameKey", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "categoryId", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "nameKey", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "players",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "groupId", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"},
+        {"fieldPath": "nameKey", "order": "ASCENDING"}
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

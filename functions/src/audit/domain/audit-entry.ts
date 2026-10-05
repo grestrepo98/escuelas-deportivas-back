@@ -17,10 +17,24 @@ export type AuditAction =
   | "group.created"
   | "group.updated"
   | "group.closed"
-  | "group.reopened"; // extended by future specs
+  | "group.reopened"
+  | "player.created"
+  | "player.updated"
+  | "player.placement_changed"
+  | "player.status_changed"
+  | "player.guardians_changed"
+  | "player.consent_recorded"
+  | "guardian.created"
+  | "guardian.updated"; // extended by future specs
 
 export type AuditTargetType =
-  "membership" | "tenant" | "venue" | "category" | "group";
+  | "membership"
+  | "tenant"
+  | "venue"
+  | "category"
+  | "group"
+  | "player"
+  | "guardian";
 
 // The writer assigns the timestamp (server time, UTC), so it is not part
 // of the entry the domain builds.

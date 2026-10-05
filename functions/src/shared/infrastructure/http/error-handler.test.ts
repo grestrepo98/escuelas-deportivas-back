@@ -40,6 +40,20 @@ describe("errorHandler", () => {
     expect(result.body).toEqual({error: {code, message: "msg"}});
   });
 
+  it("includes the details of a domain error when it has them", async () => {
+    const result = await call(
+      new DomainError("failed_precondition", "msg", {playerId: "p1"}),
+    );
+    expect(result.status).toBe(409);
+    expect(result.body).toEqual({
+      error: {
+        code: "failed_precondition",
+        message: "msg",
+        details: {playerId: "p1"},
+      },
+    });
+  });
+
   it("hides unexpected errors behind a generic 500", async () => {
     const result = await call(new Error("secret db detail"));
     expect(result.status).toBe(500);

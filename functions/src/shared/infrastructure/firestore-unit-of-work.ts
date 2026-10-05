@@ -5,6 +5,9 @@ import type {
 import type {Firestore} from "firebase-admin/firestore";
 import {FirestoreAuditLogWriter} from "../../audit/infrastructure/firestore/firestore-audit-log-writer.js";
 import {FirestoreMembershipRepository} from "../../membership/infrastructure/firestore/firestore-membership-repository.js";
+import {FirestoreGuardianRepository} from "../../player/infrastructure/firestore/firestore-guardian-repository.js";
+import {FirestorePlayerHistoryWriter} from "../../player/infrastructure/firestore/firestore-player-history-writer.js";
+import {FirestorePlayerRepository} from "../../player/infrastructure/firestore/firestore-player-repository.js";
 import {FirestoreStructureRepository} from "../../structure/infrastructure/firestore/firestore-structure-repository.js";
 import {FirestoreTenantRepository} from "../../tenant/infrastructure/firestore/firestore-tenant-repository.js";
 import {
@@ -43,6 +46,9 @@ export class FirestoreUnitOfWork implements UnitOfWork {
           groupMapper,
           tx,
         ),
+        players: new FirestorePlayerRepository(this.db, tx),
+        guardians: new FirestoreGuardianRepository(this.db, tx),
+        playerHistory: new FirestorePlayerHistoryWriter(this.db, tx),
       }),
     );
   }
