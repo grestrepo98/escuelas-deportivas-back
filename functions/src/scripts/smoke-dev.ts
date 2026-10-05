@@ -2,15 +2,20 @@ import {initializeApp} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {
+  GROUP_NORTE_SUB10,
+  GROUP_NORTE_SUB12,
+  GROUP_SUR_SUB10,
   parseSeedArgs,
   SEED_CATEGORIES,
   SEED_GROUPS,
+  SEED_PLAYERS,
   SEED_USERS,
   SEED_VENUES,
   type SeedUser,
 } from "./seed-lib.js";
 
-// End-to-end smoke test of the deployed module APIs (specs 01, 02, 04 and 05).
+// End-to-end smoke test of the deployed module APIs (specs 01, 02, 04, 05 and
+// 06).
 // It signs in as seeded users and calls the real functions over HTTPS.
 //
 //   SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev
@@ -42,7 +47,7 @@ async function main(): Promise<void> {
   const authBase = isEmulator
     ? `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com`
     : "https://identitytoolkit.googleapis.com";
-  // `api` is the function name (membershipApi, tenantApi, structureApi).
+  // `api` is the function name (membershipApi, tenantApi, structureApi, playerApi).
   const apiUrl = (api: string, path: string) =>
     isEmulator
       ? `http://127.0.0.1:5001/${args.projectId}/us-central1/${api}${path}`
@@ -708,6 +713,386 @@ async function main(): Promise<void> {
     }
     if (invitedUid) {
       await adminAuth.deleteUser(invitedUid).catch(() => undefined);
+    }
+  }
+
+  // Spec 06: players and guardians. The player it enrolls and its guardian
+  // are deleted at the end, so a rerun starts clean and `dev` keeps only the
+  // seeded players. The audit log keeps its entries, as it must.
+  const playersPath = "/tenants/tenant-a/players";
+  const playerCall = (
+    method: "GET" | "POST" | "PUT" | "PATCH",
+    path: string,
+    token: string,
+    data?: unknown,
+  ) => call("playerApi", method, `${playersPath}${path}`, data, token);
+  const smokeNumber = String(Date.now()).slice(-9);
+  const smokeTi = `7${smokeNumber}`;
+  const smokeCc = `8${smokeNumber}`;
+  const seedPlayerIds = SEED_PLAYERS.map((p) => p.id);
+  const norteSeedIds = SEED_PLAYERS.filter(
+    (p) => p.groupId !== GROUP_SUR_SUB10,
+  ).map((p) => p.id);
+  let smokePlayerId = "";
+
+  type ListedPlayer = {id: string};
+  const listAll = async (token: string, query = ""): Promise<string[]> => {
+    const ids: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 50; page++) {
+      const suffix: string = `${query}${query ? "&" : "?"}limit=3${
+        cursor ? `&cursor=${cursor}` : ""
+      }`;
+      const {status, body} = await playerCall("GET", suffix, token);
+      expectEqual(status, 200, "list status");
+      ids.push(...body.players.map((p: ListedPlayer) => p.id));
+      cursor = body.nextCursor;
+      if (cursor === null) return ids;
+    }
+    throw new Error("the list did not end after 50 pages");
+  };
+
+  try {
+    await check(
+      "the owner enrolls a player with a new guardian in one call",
+      async () => {
+        const {status, body} = await playerCall("POST", "", tokenA, {
+          firstNames: "Smoke",
+          lastNames: `Prueba ${smokeNumber}`,
+          document: {type: "TI", number: smokeTi},
+          birthDate: "2015-05-05",
+          groupId: GROUP_NORTE_SUB10,
+          emergencyContact: {
+            name: "Smoke Acudiente",
+            phone: "3000000000",
+            relationship: "madre",
+          },
+          guardians: [
+            {
+              guardian: {
+                firstNames: "Smoke",
+                lastNames: `Acudiente ${smokeNumber}`,
+                document: {type: "CC", number: smokeCc},
+                phone: "3000000000",
+                preferredContact: "phone",
+              },
+              relationship: "madre",
+              isPaymentResponsible: true,
+            },
+          ],
+        });
+        expectEqual(
+          [status, body.status, body.createdGuardianIds?.length],
+          [201, "preinscrito", 1],
+          "enroll response",
+        );
+        smokePlayerId = body.playerId;
+
+        const entries = await db
+          .collection("tenants/tenant-a/auditLog")
+          .where("target.id", "==", smokePlayerId)
+          .get();
+        expectEqual(
+          entries.docs.map((d) => d.data().action),
+          ["player.created"],
+          "audit actions",
+        );
+      },
+    );
+
+    await check(
+      "enrolling the same document again is a conflict that names the player",
+      async () => {
+        const {status, body} = await playerCall("POST", "", tokenA, {
+          firstNames: "Otro",
+          lastNames: "Nombre",
+          document: {type: "TI", number: smokeTi},
+          birthDate: "2015-05-06",
+          groupId: GROUP_NORTE_SUB10,
+          emergencyContact: {name: "A", phone: "3", relationship: "madre"},
+          guardians: [],
+        });
+        expectEqual(
+          [status, body.error?.details?.playerId],
+          [409, smokePlayerId],
+          "conflict",
+        );
+      },
+    );
+
+    await check("a teacher cannot enroll or write", async () => {
+      const token = await signIn(teacherA);
+      const enroll = await playerCall("POST", "", token, {
+        firstNames: "X",
+        lastNames: "Y",
+        birthDate: "2015-01-01",
+        groupId: GROUP_NORTE_SUB10,
+        emergencyContact: {name: "A", phone: "3", relationship: "madre"},
+        guardians: [],
+      });
+      const write = await playerCall(
+        "PATCH",
+        `/${seedPlayerIds[0]}/status`,
+        token,
+        {status: "pausado", reason: "smoke"},
+      );
+      expectEqual([enroll.status, write.status], [403, 403], "statuses");
+    });
+
+    await check(
+      "activating needs the consent; a coordinator records it and activates",
+      async () => {
+        const token = await signIn(coordinatorA);
+        const refused = await playerCall(
+          "PATCH",
+          `/${smokePlayerId}/status`,
+          token,
+          {status: "activo"},
+        );
+        expectEqual(refused.status, 409, "without the consent");
+
+        const player = await playerCall("GET", `/${smokePlayerId}`, token);
+        const guardianId = player.body.guardians[0].guardianId;
+        const consent = await playerCall(
+          "PUT",
+          `/${smokePlayerId}/consent`,
+          token,
+          {guardianId},
+        );
+        expectEqual(consent.status, 200, "consent");
+
+        const activated = await playerCall(
+          "PATCH",
+          `/${smokePlayerId}/status`,
+          token,
+          {status: "activo"},
+        );
+        expectEqual(
+          [activated.status, activated.body.status],
+          [200, "activo"],
+          "activation",
+        );
+      },
+    );
+
+    await check(
+      "a coordinator moves the player inside their venue, not to another",
+      async () => {
+        const token = await signIn(coordinatorA);
+        const moved = await playerCall(
+          "PUT",
+          `/${smokePlayerId}/placement`,
+          token,
+          {groupId: GROUP_NORTE_SUB12, reason: "smoke"},
+        );
+        expectEqual(
+          [moved.status, moved.body.groupId],
+          [200, GROUP_NORTE_SUB12],
+          "move",
+        );
+        const denied = await playerCall(
+          "PUT",
+          `/${smokePlayerId}/placement`,
+          token,
+          {groupId: GROUP_SUR_SUB10},
+        );
+        expectEqual(denied.status, 403, "to another venue");
+      },
+    );
+
+    await check("the history lists the changes, newest first", async () => {
+      const {status, body} = await playerCall(
+        "GET",
+        `/${smokePlayerId}/history`,
+        tokenA,
+      );
+      expectEqual(status, 200, "status");
+      expectEqual(
+        body.entries.map((e: {type: string}) => e.type),
+        ["placement", "status"],
+        "entry types",
+      );
+    });
+
+    await check(
+      "the list pages by cursor without repeating or skipping anyone",
+      async () => {
+        const ids = await listAll(tokenA);
+        expectEqual(new Set(ids).size, ids.length, "no repeated player");
+        for (const id of [...seedPlayerIds, smokePlayerId]) {
+          expectEqual(ids.includes(id), true, `lists ${id}`);
+        }
+      },
+    );
+
+    await check(
+      "the list filters by status and by venue (the composite indexes)",
+      async () => {
+        const active = await listAll(tokenA, "?status=activo");
+        const activeSeed = SEED_PLAYERS.filter((p) => p.status === "activo");
+        for (const p of SEED_PLAYERS) {
+          expectEqual(
+            active.includes(p.id),
+            p.status === "activo",
+            `${p.id} in the active list`,
+          );
+        }
+        expectEqual(active.includes(smokePlayerId), true, "smoke player");
+        expectEqual(active.length >= activeSeed.length + 1, true, "count");
+
+        const norteActive = await listAll(
+          tokenA,
+          `?venueId=${coordinatorVenueId}&status=activo`,
+        );
+        expectEqual(
+          norteActive.includes(seedPlayerIds[0]) &&
+            !norteActive.includes(seedPlayerIds[6]),
+          true,
+          "active players of the north venue only",
+        );
+        const byGroup = await listAll(tokenA, `?groupId=${GROUP_NORTE_SUB12}`);
+        expectEqual(byGroup.includes(smokePlayerId), true, "by group");
+        const two = await playerCall(
+          "GET",
+          `?venueId=${coordinatorVenueId}&groupId=${GROUP_NORTE_SUB12}`,
+          tokenA,
+        );
+        expectEqual(two.status, 400, "two location filters");
+      },
+    );
+
+    await check(
+      "a coordinator lists only the players of their venue",
+      async () => {
+        const ids = await listAll(await signIn(coordinatorA));
+        for (const id of norteSeedIds) {
+          expectEqual(ids.includes(id), true, `lists ${id}`);
+        }
+        expectEqual(ids.includes(smokePlayerId), true, "smoke player");
+        expectEqual(
+          SEED_PLAYERS.filter((p) => p.groupId === GROUP_SUR_SUB10).some((p) =>
+            ids.includes(p.id),
+          ),
+          false,
+          "no player of the south venue",
+        );
+      },
+    );
+
+    await check(
+      "the search index has documents for the staff and not for a teacher",
+      async () => {
+        const staff = await playerCall("GET", "/search-index", tokenA);
+        const entry = staff.body.entries.find(
+          (e: {id: string}) => e.id === smokePlayerId,
+        );
+        expectEqual(
+          [entry?.documentNumber, entry?.guardianNames],
+          [smokeTi, [`Smoke Acudiente ${smokeNumber}`]],
+          "staff entry",
+        );
+
+        const teacher = await playerCall(
+          "GET",
+          "/search-index",
+          await signIn(teacherA),
+        );
+        expectEqual(teacher.status, 200, "teacher status");
+        expectEqual(
+          teacher.body.entries.every(
+            (e: object) => !("documentNumber" in e || "guardianNames" in e),
+          ),
+          true,
+          "no document or guardian names",
+        );
+      },
+    );
+
+    await check(
+      "a teacher sees only their group, without document or guardians",
+      async () => {
+        const token = await signIn(teacherA);
+        const ids = await listAll(token);
+        expectEqual(
+          sorted(ids),
+          sorted(
+            SEED_PLAYERS.filter((p) => p.groupId === GROUP_NORTE_SUB10).map(
+              (p) => p.id,
+            ),
+          ),
+          "the teacher's players",
+        );
+
+        const own = await playerCall("GET", `/${seedPlayerIds[0]}`, token);
+        expectEqual(own.status, 200, "own group");
+        expectEqual(
+          ["document", "guardians", "dataConsent"].some((k) => k in own.body),
+          false,
+          "restricted fields",
+        );
+        const other = await playerCall("GET", `/${seedPlayerIds[3]}`, token);
+        expectEqual(other.status, 403, "another group");
+      },
+    );
+
+    await check(
+      "renaming a guardian updates the copy in the player",
+      async () => {
+        const player = await playerCall("GET", `/${smokePlayerId}`, tokenA);
+        const guardianId = player.body.guardians[0].guardianId;
+        const renamed = await call(
+          "playerApi",
+          "PUT",
+          `/tenants/tenant-a/guardians/${guardianId}`,
+          {
+            firstNames: "Smoke Renombrado",
+            lastNames: `Acudiente ${smokeNumber}`,
+            document: {type: "CC", number: smokeCc},
+            phone: "3000000000",
+            preferredContact: "phone",
+          },
+          tokenA,
+        );
+        expectEqual(renamed.status, 200, "update");
+        const after = await playerCall("GET", `/${smokePlayerId}`, tokenA);
+        expectEqual(
+          after.body.guardians[0].fullName,
+          `Smoke Renombrado Acudiente ${smokeNumber}`,
+          "copied name",
+        );
+
+        const found = await call(
+          "playerApi",
+          "GET",
+          `/tenants/tenant-a/guardians?documentType=CC&documentNumber=${smokeCc}`,
+          undefined,
+          tokenA,
+        );
+        expectEqual(
+          [found.status, found.body.guardian?.id],
+          [200, guardianId],
+          "found by document",
+        );
+      },
+    );
+
+    await check("a tenant-b owner cannot read tenant-a players", async () => {
+      const list = await playerCall("GET", "", tokenB);
+      const one = await playerCall("GET", `/${seedPlayerIds[0]}`, tokenB);
+      expectEqual([list.status, one.status], [403, 403], "statuses");
+    });
+  } finally {
+    const players = db.collection("tenants/tenant-a/players");
+    const guardians = db.collection("tenants/tenant-a/guardians");
+    for (const doc of (
+      await players.where("documentKey", "==", `TI:${smokeTi}`).get()
+    ).docs) {
+      await db.recursiveDelete(doc.ref);
+    }
+    for (const doc of (
+      await guardians.where("documentKey", "==", `CC:${smokeCc}`).get()
+    ).docs) {
+      await doc.ref.delete();
     }
   }
 
