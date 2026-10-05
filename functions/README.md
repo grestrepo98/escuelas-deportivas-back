@@ -2,69 +2,94 @@
 
 Cloud Functions (2.ª generación, Node 24, TypeScript). Es el único paquete npm del
 repo y contiene todo el código del backend, organizado por módulo (ADR 0008):
-dominio, casos de uso, adaptadores de Firestore y callables. Región fija
-`us-central1` (ADR 0003).
-
-> **Estado:** este README describe el código tal como está (10 callables). El ADR
-> 0009 y la spec 04 lo reemplazan por una API HTTP con Express por módulo
-> (`membershipApi`, `tenantApi`, `structureApi`, con `infrastructure/http/` en vez de
-> `infrastructure/callables/`). Este documento se reescribe cuando se ejecute esa
-> spec; la correspondencia entre callables y rutas está en
-> `docs/arquitectura.md` y en la spec 04.
+dominio, casos de uso, adaptadores de Firestore y una API HTTP con Express por
+módulo (ADR 0009). Región fija `us-central1` (ADR 0003).
 
 ## Estructura
 
 ```
 src/
-├── index.ts                      # setGlobalOptions + exporta las 10 callables
+├── index.ts                      # setGlobalOptions + exporta las 3 APIs
 ├── shared/                       # domain (DomainError, Clock) · application (UnitOfWork)
-│                                 # · infrastructure (admin, callable, toHttpsError, unit of work)
+│   └── infrastructure/           # admin, unit of work, clock
+│       └── http/                 # create-api, authenticate, error-handler, parse, device
 ├── audit/ membership/ tenant/ structure/
 │   ├── domain/                   # entidades y reglas puras
 │   ├── application/              # casos de uso, puertos y testing/ (dobles en memoria)
 │   └── infrastructure/
 │       ├── firestore/            # adaptadores de los puertos
-│       └── callables/<nombre>/   # schema.ts (zod, el contrato) + index.ts (onCall)
+│       └── http/                 # <módulo>-api.ts (onRequest) · router.ts
+│           └── routes/<nombre>/  # schema.ts (zod, el contrato) + handler.ts
 └── scripts/                      # seed, smoke-dev, create-tenant (no viajan al despliegue)
 test/rules/                       # reglas de Firestore/Storage (emulador)
 ```
 
+`audit` no tiene API propia: solo ofrece su puerto a los demás módulos.
+
 Los tests viven junto al código: `*.test.ts` (unitarios) y
 `*.integration.test.ts` (emulador). `domain` y `application` no importan Firebase,
-`zod` ni `infrastructure`: lo hace cumplir `.eslintrc.js` y lo prueba
+`zod`, `express` ni `infrastructure`: lo hace cumplir `.eslintrc.js` y lo prueba
 `src/shared/infrastructure/lint-boundaries.test.ts`. Para sumar un caso de uso, ver
 `docs/guias/agregar-caso-de-uso.md`.
 
-## Callables
+## APIs y rutas
 
-| Nombre | Quién | Qué hace |
-| --- | --- | --- |
-| `listMyMemberships` | cualquier usuario con sesión | Lista las membresías activas propias con el nombre del tenant |
-| `changeMembershipRole` | `owner` activo del tenant | Cambia el rol de otra membresía y registra la bitácora en la misma transacción |
-| `updateTenantProfile` | `owner` activo del tenant | Edita la ficha de la organización (nombre, registro IDRD, contacto) |
-| `saveVenue` / `setVenueStatus` | `owner` activo del tenant | Crea o edita una sede / la cierra o reabre. Cerrar con grupos activos se rechaza |
-| `saveCategory` / `setCategoryStatus` | `owner` activo del tenant | Igual, para categorías |
-| `saveGroup` / `setGroupStatus` | `owner` activo del tenant | Igual, para grupos. Sede y categoría deben estar activas; la sede no cambia |
-| `getStructure` | `owner`, `accountant`, `coordinator`, `teacher` | Árbol de sedes, categorías y grupos filtrado por rol y alcance. `includeClosed` incluye lo cerrado |
+Tres Cloud Functions `onRequest`, una por módulo, cada una con una app Express
+adentro. Una ruta nueva se agrega al `router.ts` del módulo, no como function nueva.
+La URL base de una API es `https://us-central1-<proyecto>.cloudfunctions.net/<api>`
+(en el emulador, `http://127.0.0.1:5001/<proyecto>/us-central1/<api>`).
+
+| API | Método y ruta | Quién | Qué hace |
+| --- | --- | --- | --- |
+| `membershipApi` | `GET /me/memberships` | cualquier usuario con sesión | Lista las membresías activas propias con el nombre del tenant |
+| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/role` | `owner` activo del tenant | Cambia el rol de otra membresía y registra la bitácora en la misma transacción |
+| `tenantApi` | `PUT /tenants/:tenantId/profile` | `owner` activo del tenant | Edita la ficha de la organización (nombre, registro IDRD, contacto) |
+| `structureApi` | `POST /tenants/:tenantId/venues` · `PUT …/venues/:venueId` | `owner` activo del tenant | Crea (201) o edita una sede |
+| `structureApi` | `PATCH /tenants/:tenantId/venues/:venueId/status` | `owner` activo del tenant | Cierra o reabre una sede. Cerrar con grupos activos se rechaza |
+| `structureApi` | `POST`, `PUT …/:categoryId` y `PATCH …/:categoryId/status` bajo `/categories` | `owner` activo del tenant | Igual, para categorías (`birthYears` puede ir vacío) |
+| `structureApi` | `POST`, `PUT …/:groupId` y `PATCH …/:groupId/status` bajo `/groups` | `owner` activo del tenant | Igual, para grupos. Sede y categoría deben estar activas; `venueId` solo se envía al crear y la sede no cambia |
+| `structureApi` | `GET /tenants/:tenantId/structure?includeClosed=true` | `owner`, `accountant`, `coordinator`, `teacher` | Árbol de sedes, categorías y grupos filtrado por rol y alcance. `includeClosed` incluye lo cerrado |
 
 Cada escritura deja exactamente una entrada de bitácora en la misma transacción.
 Detalle de las reglas en `docs/adr/0007-estructura-de-la-organizacion.md`.
 
-El contrato de cada una vive en su `schema.ts`. El back es la fuente de verdad;
-el front mantiene su propia copia en su adaptador de datos (D-01).
+El contrato de cada ruta vive en el `schema.ts` junto a su handler: el `tenantId`
+y el id de la entidad viajan en la ruta, el actor sale del token y los cuerpos se
+validan con zod `.strict()`. El back es la fuente de verdad; el front mantiene su
+propia copia en su adaptador de datos (D-01). Un cambio incompatible conserva la
+ruta anterior (o publica la nueva bajo otra versión) hasta que el front publique la suya.
 
-## Reglas que cumple toda callable
+## Reglas que cumple toda ruta
 
-> Con la spec 04 cada ruta de la API cumple las mismas reglas: el `uid` sale del
-> token (`Authorization: Bearer`, 401 si falta), el payload se valida con zod (400),
-> la membresía se lee en cada petición (403) y los errores salen como estados HTTP.
+1. `create-api` aplica `authenticate` antes que nada: `Authorization: Bearer <idToken>`
+   se verifica con `verifyIdToken` y el `uid` queda en `res.locals.uid`, nunca
+   viene del cuerpo. Sin token o con token inválido: `401`.
+2. El handler lee el `uid` con `requireUid(res.locals.uid)`.
+3. El cuerpo (o la consulta) se valida con `parseInput` y el esquema zod de la ruta;
+   si falla, `400` con solo los nombres de los campos, nunca sus valores.
+4. `authorizeTenantMember(db, uid, tenantId)` lee `memberships/{uid}_{tenantId}`
+   en **cada petición** (D-06). Sin membresía activa: `403`.
+5. Los errores de negocio salen como `DomainError` y el manejador de errores los
+   traduce; los inesperados se ocultan como `500` con `Internal error`.
 
-1. `requireUid(request.auth)` primero: el `uid` sale de la sesión, nunca del payload.
-2. El payload se valida con zod; si falla, `invalid-argument`.
-3. `authorizeTenantMember(db, uid, tenantId)` lee `memberships/{uid}_{tenantId}`
-   en **cada llamada** (D-06). Sin membresía activa: `permission-denied`.
-4. Los errores de negocio salen de `DomainError` y se traducen con `toHttpsError`;
-   los inesperados se ocultan como `internal`.
+| Error | Estado | Cuerpo |
+| --- | --- | --- |
+| Sin token o token inválido | `401` | `{ error: { code: "unauthenticated", message } }` |
+| `invalid_argument` (y entrada que no cumple el zod) | `400` | igual, con `code: "invalid_argument"` |
+| `permission_denied` | `403` | igual |
+| `not_found` y ruta desconocida | `404` | igual |
+| `failed_precondition` | `409` | igual |
+| Cualquier otro | `500` | `code: "internal"`, `message: "Internal error"` |
+
+Tabla completa en el ADR 0009. Cada API se publica con `cors: true`, que acepta
+cualquier origen mientras solo exista `dev`; antes de crear `prod` hay que pasar a
+una lista de orígenes por ambiente.
+
+> **Cuerpo con JSON inválido:** el runtime de Cloud Functions interpreta el cuerpo
+> antes de que corra la app Express. Un cuerpo que no sea un objeto JSON válido
+> (`{`, `null`) recibe un `400` propio del runtime, en HTML y sin el sobre
+> `{ error }`, y se resuelve antes de la autenticación. Los cuerpos que sí son JSON
+> pero no cumplen el esquema salen con el sobre normal.
 
 ## Comandos
 
@@ -80,24 +105,32 @@ npm run test:integration   # compila y levanta Auth + Firestore + Functions
 npm run seed:emulator      # datos de prueba (dentro de emulators:exec o start)
 SEED_PASSWORD=... npm run seed:dev
 npm run tenant:create -- --target dev --tenant-id <id> --name <nombre> --owner-email <correo>
-SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev   # callables desplegadas
+SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev   # APIs desplegadas
 npm run smoke:emulator     # verifica el propio smoke test en local
 ```
 
 `test:rules` y `test:integration` arrancan y apagan los emuladores solos
-(`firebase emulators:exec`) con proyectos `demo-*`: nunca tocan `dev`.
+(`firebase emulators:exec`) con proyectos `demo-*`: nunca tocan `dev`. Los tests de
+integración de las rutas llaman a la API por HTTP con el helper `callApi`
+(`src/shared/infrastructure/testing/emulator-helpers.ts`).
+
+El lint exige saltos de línea LF. En Windows con `core.autocrlf=true` el árbol de
+trabajo queda en CRLF y `npm run lint` falla en todos los archivos; el CI
+(Linux) no se ve afectado. Los despliegues desde la máquina local también pueden
+fallar por la red: ver `docs/guias/despliegue-con-red-inestable.md`.
 
 ## Empaquetado
 
 Cloud Functions solo sube esta carpeta, así que `build.mjs` empaqueta con
 esbuild a `lib/index.js` desde `src/index.ts`: el código propio (todos los módulos)
 queda dentro del bundle y los scripts y tests no, porque `index.ts` no los alcanza.
-Las `dependencies` (`firebase-admin`, `firebase-functions`, `zod`) quedan externas
-y Cloud Build las instala desde `package-lock.json`. Detalle en
+Las `dependencies` (`express`, `firebase-admin`, `firebase-functions`, `zod`) quedan
+externas y Cloud Build las instala desde `package-lock.json`. Detalle en
 `docs/adr/0008-estructura-modular-en-functions.md`.
 
 > Cualquier paquete nuevo que deba existir en producción va en `dependencies`;
-> si va en `devDependencies`, esbuild lo incluirá en el bundle.
+> si va en `devDependencies`, esbuild lo incluirá en el bundle. Los tipos
+> (`@types/express`) sí van en `devDependencies`.
 
 ## Diferencias entre el emulador y la nube
 

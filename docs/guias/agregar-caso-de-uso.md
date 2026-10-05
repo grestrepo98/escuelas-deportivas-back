@@ -5,10 +5,6 @@ Cada paso termina en verde antes de pasar al siguiente. Todo el código vive en
 `functions/src/<módulo>/{domain,application,infrastructure}` (ADR 0008) y los
 comandos se corren desde `functions/`.
 
-> El borde se describe según el ADR 0009 (una API Express por módulo). Mientras la
-> spec 04 no esté ejecutada, el código todavía expone callables: en ese caso sigue
-> el patrón de `callables/<nombre>` que ya existe en el módulo.
-
 ## 0. Antes de escribir código
 
 - La regla de negocio está en una spec aprobada (`specs/`). Si no, va primero a la spec.

@@ -1,6 +1,6 @@
 # ADR 0009 — API HTTP por módulo con Express
 
-- **Estado:** Aceptada (código pendiente, ver "Verificación")
+- **Estado:** Aceptada. Implementada en la spec 04; el despliegue a `dev` está pendiente (ver "Verificación")
 - **Fecha:** 2026-10-04
 - **Spec:** `specs/04-api-http-por-modulo.md` · **Plan:** D-03
 - **Reemplaza a:** la parte de "callables" de los ADR 0002, 0005, 0007 y 0008 (sus decisiones de negocio siguen vigentes)
@@ -97,12 +97,18 @@ El cuerpo es `{error: {code, message}}`. La tabla reemplaza a `toHttpsError`.
   caso de uso agrega una ruta al router del módulo, no una function.
 - Express y `@types/express` son dependencias nuevas (`dependencies` y
   `devDependencies`).
-- El primer despliegue a `dev` debe eliminar las 10 functions anteriores; en CI el
-  `firebase deploy` necesita `--force` para no pedir confirmación.
+- El primer despliegue a `dev` exige eliminar antes, a mano y una sola vez, las 10
+  functions anteriores (`firebase functions:delete … --force`). El CI no usa
+  `--force`: así un `--force` permanente no podría borrar en `dev`, sin aviso,
+  cualquier function que desaparezca de `index.ts`.
 - El front tendrá un adaptador con `fetch` y el token en `Authorization`, en vez de
   `httpsCallable`.
 
 ## Verificación
 
-- Pendiente: toda la implementación (spec 04). Este ADR solo fija la decisión; el
-  código sigue como en el ADR 0008 hasta que se ejecute esa spec.
+- Hecho: tests de integración por HTTP de cada ruta (401, 400, 403, camino feliz y
+  bitácora), tests unitarios de `authenticate`, `parse`, `error-handler`, `device` y
+  `create-api`, la regla de ESLint para `express` probada en `lint-boundaries.test.ts`
+  y `smoke:emulator`.
+- Pendiente: despliegue a `dev` (borrado de las 10 callables hecho; faltan reglas y
+  functions), `seed:dev`, `smoke:dev` y el CI en un PR real.

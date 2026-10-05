@@ -1,12 +1,9 @@
 # Arquitectura del backend
 
 Estado: refleja lo construido por las specs 01 (fundaciones), 02 (estructura de
-la organización) y 03 (reestructura modular de `functions`), con el borde descrito
-según el **ADR 0009** (una API HTTP con Express por módulo). El código todavía
-expone 10 callables; la spec 04 las migra a las rutas de este documento. Hasta
-entonces, donde esta doc dice "ruta" el código tiene una callable con el mismo caso
-de uso. Las decisiones numeradas (D-xx) están en `plan-tecnico.md`; las de cada
-spec, en `adr/`.
+la organización), 03 (reestructura modular de `functions`) y 04 (una API HTTP con
+Express por módulo, **ADR 0009**). Las decisiones numeradas (D-xx) están en
+`plan-tecnico.md`; las de cada spec, en `adr/`.
 
 ## Capas
 
@@ -63,10 +60,6 @@ app Express adentro. Express vive solo en `infrastructure/http`; `domain` y
 | `structureApi` | las mismas tres rutas para `groups` | `SaveGroup`, `SetGroupStatus` | `owner` | 0007 |
 | `structureApi` | `GET /tenants/:tenantId/structure` | `visibleStructure` (función pura) sobre la lectura del tenant | por rol y alcance | 0007 |
 
-Hoy el código las expone como las callables `listMyMemberships`,
-`changeMembershipRole`, `updateTenantProfile`, `save*`, `set*Status` y
-`getStructure`; la spec 04 las migra.
-
 ## Puertos y adaptadores
 
 | Puerto (`application`) | Adaptador (`infrastructure/firestore`) | Doble de prueba (`application/testing`) |
@@ -96,9 +89,9 @@ en la Fase 2.
 
 ### Lecturas
 
-- `GET /me/memberships` (hoy `listMyMemberships`) no pasa por el dominio: es una consulta de lectura
+- `GET /me/memberships` no pasa por el dominio: es una consulta de lectura
   (`membership/infrastructure/firestore/my-memberships-query.ts`).
-- `GET /tenants/:tenantId/structure` (hoy `getStructure`) lee con `readStructure` (`structure/infrastructure/firestore/structure-query.ts`),
+- `GET /tenants/:tenantId/structure` lee con `readStructure` (`structure/infrastructure/firestore/structure-query.ts`),
   descarta lo cerrado salvo `includeClosed`, aplica `visibleStructure` del dominio
   y devuelve DTO con fechas ISO 8601 en UTC y sin `tenantId`.
 
@@ -196,8 +189,7 @@ El cuerpo de todo error es `{error: {code, message}}` (ADR 0009).
 
 La forma de la entrada la rechaza zod en el borde (también `400`, con los nombres
 de los campos y nunca sus valores); las reglas de negocio de los valores, el
-dominio. Hoy, mientras exista el código con callables, el mapeo equivalente es
-`toHttpsError`.
+dominio.
 
 ## Pruebas
 
