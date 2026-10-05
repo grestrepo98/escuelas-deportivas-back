@@ -1,6 +1,6 @@
 # SPEC 04 — API HTTP por módulo con Express (deuda técnica tras la spec 03)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01, SPEC 02 y SPEC 03 (todas implementadas como callables). Decisión en `docs/adr/0009-api-http-por-modulo.md` y en D-03 de `docs/plan-tecnico.md`.
 > **Date:** 2026-10-04
 > **Objective:** Que cada módulo exponga todos sus endpoints en una sola Cloud Function HTTP con Express, en lugar de una callable por caso de uso, sin cambiar casos de uso, reglas de negocio, autorización ni datos.
