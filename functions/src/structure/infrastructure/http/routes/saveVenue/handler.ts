@@ -1,8 +1,6 @@
 import type {Request, RequestHandler, Response} from "express";
 import {SaveVenue} from "../../../../application/save-venue.js";
-import {
-  FirestoreUnitOfWork,
-} from "../../../../../shared/infrastructure/firestore-unit-of-work.js";
+import {FirestoreUnitOfWork} from "../../../../../shared/infrastructure/firestore-unit-of-work.js";
 import {firestore} from "../../../../../shared/infrastructure/admin.js";
 import {
   authorizeTenantMember,
@@ -10,9 +8,7 @@ import {
 } from "../../../../../membership/infrastructure/authorize.js";
 import {deviceOf} from "../../../../../shared/infrastructure/http/device.js";
 import {parseInput} from "../../../../../shared/infrastructure/http/parse.js";
-import {
-  systemClock,
-} from "../../../../../shared/infrastructure/system-clock.js";
+import {systemClock} from "../../../../../shared/infrastructure/system-clock.js";
 import {
   saveVenueInput,
   saveVenueOutput,
@@ -46,9 +42,10 @@ export const createVenue: RequestHandler<{tenantId: string}> = async (
   res.status(201).json(await save(req, res, req.params.tenantId));
 };
 
-export const updateVenue: RequestHandler<
-  {tenantId: string; venueId: string}
-> = async (req, res) => {
+export const updateVenue: RequestHandler<{
+  tenantId: string;
+  venueId: string;
+}> = async (req, res) => {
   const {tenantId, venueId} = req.params;
   res.json(await save(req, res, tenantId, venueId));
 };

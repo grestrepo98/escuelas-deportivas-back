@@ -7,7 +7,10 @@ export type DomainErrorCode =
   | "invalid_argument";
 
 export class DomainError extends Error {
-  constructor(readonly code: DomainErrorCode, message: string) {
+  constructor(
+    readonly code: DomainErrorCode,
+    message: string,
+  ) {
     super(message);
     this.name = "DomainError";
   }

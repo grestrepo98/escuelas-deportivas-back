@@ -11,15 +11,9 @@ import type {
   Venue,
 } from "../domain/structure.js";
 import {FakeClock} from "../../shared/application/testing/fake-clock.js";
-import {
-  InMemoryAuditLogWriter,
-} from "../../audit/application/testing/in-memory-audit-log-writer.js";
-import {
-  InMemoryMembershipRepository,
-} from "../../membership/application/testing/in-memory-membership-repository.js";
-import {
-  InMemoryUnitOfWork,
-} from "../../shared/application/testing/in-memory-unit-of-work.js";
+import {InMemoryAuditLogWriter} from "../../audit/application/testing/in-memory-audit-log-writer.js";
+import {InMemoryMembershipRepository} from "../../membership/application/testing/in-memory-membership-repository.js";
+import {InMemoryUnitOfWork} from "../../shared/application/testing/in-memory-unit-of-work.js";
 
 const T0 = new Date("2026-10-01T00:00:00Z");
 const NOW = new Date("2026-10-03T12:00:00Z");
@@ -138,12 +132,18 @@ describe("SaveGroup — create", () => {
   });
 
   it("accepts an empty schedule", async () => {
-    await expect(saveGroup.execute(create({schedule: []})))
-      .resolves.toBeDefined();
+    await expect(
+      saveGroup.execute(create({schedule: []})),
+    ).resolves.toBeDefined();
   });
 
-  it.each<Role>(["coordinator", "accountant", "teacher", "guardian",
-    "adultPlayer"])("rejects %s", async (role) => {
+  it.each<Role>([
+    "coordinator",
+    "accountant",
+    "teacher",
+    "guardian",
+    "adultPlayer",
+  ])("rejects %s", async (role) => {
     await memberships.save(member("u-1", role));
     const code = await rejection(saveGroup.execute(create({actorUid: "u-1"})));
     expect(code).toBe("permission_denied");
@@ -166,45 +166,47 @@ describe("SaveGroup — create", () => {
   });
 
   it("rejects a blank name", async () => {
-    expect(await rejection(saveGroup.execute(create({name: " "}))))
-      .toBe("invalid_argument");
+    expect(await rejection(saveGroup.execute(create({name: " "})))).toBe(
+      "invalid_argument",
+    );
   });
 
   it("rejects an invalid schedule", async () => {
     const bad = {weekday: 2, start: "18:00", end: "17:00"};
-    expect(await rejection(saveGroup.execute(create({schedule: [bad]}))))
-      .toBe("invalid_argument");
+    expect(await rejection(saveGroup.execute(create({schedule: [bad]})))).toBe(
+      "invalid_argument",
+    );
   });
 
   it("rejects a venue or category that does not exist", async () => {
-    expect(await rejection(
-      saveGroup.execute(create({venueId: "nope"})),
-    )).toBe("not_found");
-    expect(await rejection(
-      saveGroup.execute(create({categoryId: "nope"})),
-    )).toBe("not_found");
+    expect(await rejection(saveGroup.execute(create({venueId: "nope"})))).toBe(
+      "not_found",
+    );
+    expect(
+      await rejection(saveGroup.execute(create({categoryId: "nope"}))),
+    ).toBe("not_found");
   });
 
   it("rejects a venue or category of another tenant", async () => {
     await uow.venues.save(venue({id: "venue-b", tenantId: "tenant-b"}));
     await uow.categories.save(category({id: "cat-b", tenantId: "tenant-b"}));
-    expect(await rejection(
-      saveGroup.execute(create({venueId: "venue-b"})),
-    )).toBe("not_found");
-    expect(await rejection(
-      saveGroup.execute(create({categoryId: "cat-b"})),
-    )).toBe("not_found");
+    expect(
+      await rejection(saveGroup.execute(create({venueId: "venue-b"}))),
+    ).toBe("not_found");
+    expect(
+      await rejection(saveGroup.execute(create({categoryId: "cat-b"}))),
+    ).toBe("not_found");
   });
 
   it("rejects a closed venue or category", async () => {
     await uow.venues.save(venue({id: "venue-c", status: "closed"}));
     await uow.categories.save(category({id: "cat-c", status: "closed"}));
-    expect(await rejection(
-      saveGroup.execute(create({venueId: "venue-c"})),
-    )).toBe("failed_precondition");
-    expect(await rejection(
-      saveGroup.execute(create({categoryId: "cat-c"})),
-    )).toBe("failed_precondition");
+    expect(
+      await rejection(saveGroup.execute(create({venueId: "venue-c"}))),
+    ).toBe("failed_precondition");
+    expect(
+      await rejection(saveGroup.execute(create({categoryId: "cat-c"}))),
+    ).toBe("failed_precondition");
     expect(auditLog.entries).toHaveLength(0);
   });
 
@@ -221,14 +223,17 @@ describe("SaveGroup — create", () => {
     await uow.groups.save(group({venueId: "venue-2"}));
     await expect(saveGroup.execute(create())).resolves.toBeDefined();
 
-    await uow.groups.save(group({
-      id: "g-closed",
-      venueId: "venue-1",
-      name: "Grupo B",
-      status: "closed",
-    }));
-    await expect(saveGroup.execute(create({name: "Grupo B"})))
-      .resolves.toBeDefined();
+    await uow.groups.save(
+      group({
+        id: "g-closed",
+        venueId: "venue-1",
+        name: "Grupo B",
+        status: "closed",
+      }),
+    );
+    await expect(
+      saveGroup.execute(create({name: "Grupo B"})),
+    ).resolves.toBeDefined();
   });
 });
 
@@ -239,31 +244,33 @@ describe("SaveGroup — update", () => {
 
   const update = (overrides = {}) => create({groupId: "group-x", ...overrides});
 
-  it("updates fields, keeps venue and createdAt, records before/after",
-    async () => {
-      const result = await saveGroup.execute(update({
+  it("updates fields, keeps venue and createdAt, records before/after", async () => {
+    const result = await saveGroup.execute(
+      update({
         name: "Grupo B",
         schedule: [{weekday: 4, start: "16:00", end: "17:00"}],
-      }));
-      expect(result).toEqual({groupId: "group-x"});
-      const saved = (await uow.groups.get("tenant-a", "group-x"))!;
-      expect(saved).toMatchObject({
-        venueId: "venue-1",
-        name: "Grupo B",
-        schedule: [{weekday: 4, start: "16:00", end: "17:00"}],
-        createdAt: T0,
-        updatedAt: NOW,
-      });
-      expect(auditLog.entries[0]).toMatchObject({
-        action: "group.updated",
-        before: {name: "Grupo A", schedule: []},
-        after: {name: "Grupo B"},
-      });
+      }),
+    );
+    expect(result).toEqual({groupId: "group-x"});
+    const saved = (await uow.groups.get("tenant-a", "group-x"))!;
+    expect(saved).toMatchObject({
+      venueId: "venue-1",
+      name: "Grupo B",
+      schedule: [{weekday: 4, start: "16:00", end: "17:00"}],
+      createdAt: T0,
+      updatedAt: NOW,
     });
+    expect(auditLog.entries[0]).toMatchObject({
+      action: "group.updated",
+      before: {name: "Grupo A", schedule: []},
+      after: {name: "Grupo B"},
+    });
+  });
 
   it("does not require venueId on update", async () => {
-    await expect(saveGroup.execute(update({venueId: undefined})))
-      .resolves.toEqual({groupId: "group-x"});
+    await expect(
+      saveGroup.execute(update({venueId: undefined})),
+    ).resolves.toEqual({groupId: "group-x"});
   });
 
   it("rejects a different venueId and moves nothing", async () => {
@@ -272,57 +279,55 @@ describe("SaveGroup — update", () => {
       saveGroup.execute(update({venueId: "venue-2"})),
     );
     expect(code).toBe("failed_precondition");
-    expect((await uow.groups.get("tenant-a", "group-x"))!.venueId)
-      .toBe("venue-1");
+    expect((await uow.groups.get("tenant-a", "group-x"))!.venueId).toBe(
+      "venue-1",
+    );
     expect(auditLog.entries).toHaveLength(0);
   });
 
   it("allows changing to another active category", async () => {
     await uow.categories.save(category({id: "cat-2", name: "Sub-12"}));
     await saveGroup.execute(update({categoryId: "cat-2"}));
-    expect((await uow.groups.get("tenant-a", "group-x"))!.categoryId)
-      .toBe("cat-2");
+    expect((await uow.groups.get("tenant-a", "group-x"))!.categoryId).toBe(
+      "cat-2",
+    );
   });
 
   it("rejects changing to a closed or missing category", async () => {
     await uow.categories.save(category({id: "cat-c", status: "closed"}));
-    expect(await rejection(
-      saveGroup.execute(update({categoryId: "cat-c"})),
-    )).toBe("failed_precondition");
-    expect(await rejection(
-      saveGroup.execute(update({categoryId: "nope"})),
-    )).toBe("not_found");
+    expect(
+      await rejection(saveGroup.execute(update({categoryId: "cat-c"}))),
+    ).toBe("failed_precondition");
+    expect(
+      await rejection(saveGroup.execute(update({categoryId: "nope"}))),
+    ).toBe("not_found");
   });
 
   it("allows keeping its own name", async () => {
-    await expect(saveGroup.execute(update({schedule: []})))
-      .resolves.toEqual({groupId: "group-x"});
+    await expect(saveGroup.execute(update({schedule: []}))).resolves.toEqual({
+      groupId: "group-x",
+    });
   });
 
   it("rejects a name used by another active group of the venue", async () => {
     await uow.groups.save(group({id: "group-y", name: "Grupo B"}));
-    const code = await rejection(
-      saveGroup.execute(update({name: "grupo b"})),
-    );
+    const code = await rejection(saveGroup.execute(update({name: "grupo b"})));
     expect(code).toBe("failed_precondition");
   });
 
-  it("rejects a group that does not exist or is of another tenant",
-    async () => {
-      await uow.groups.save(group({id: "g-b", tenantId: "tenant-b"}));
-      expect(await rejection(
-        saveGroup.execute(update({groupId: "nope"})),
-      )).toBe("not_found");
-      expect(await rejection(
-        saveGroup.execute(update({groupId: "g-b"})),
-      )).toBe("not_found");
-    });
+  it("rejects a group that does not exist or is of another tenant", async () => {
+    await uow.groups.save(group({id: "g-b", tenantId: "tenant-b"}));
+    expect(await rejection(saveGroup.execute(update({groupId: "nope"})))).toBe(
+      "not_found",
+    );
+    expect(await rejection(saveGroup.execute(update({groupId: "g-b"})))).toBe(
+      "not_found",
+    );
+  });
 
   it("rejects non-owners", async () => {
     await memberships.save(member("c1", "coordinator"));
-    const code = await rejection(
-      saveGroup.execute(update({actorUid: "c1"})),
-    );
+    const code = await rejection(saveGroup.execute(update({actorUid: "c1"})));
     expect(code).toBe("permission_denied");
   });
 });
@@ -378,44 +383,54 @@ describe("SetGroupStatus", () => {
 
     it("rejects reopening under a closed venue", async () => {
       await uow.venues.save(venue({status: "closed"}));
-      expect(await rejection(setStatus.execute(reopen())))
-        .toBe("failed_precondition");
-      expect((await uow.groups.get("tenant-a", "group-x"))!.status)
-        .toBe("closed");
+      expect(await rejection(setStatus.execute(reopen()))).toBe(
+        "failed_precondition",
+      );
+      expect((await uow.groups.get("tenant-a", "group-x"))!.status).toBe(
+        "closed",
+      );
       expect(auditLog.entries).toHaveLength(0);
     });
 
     it("rejects reopening under a closed category", async () => {
       await uow.categories.save(category({status: "closed"}));
-      expect(await rejection(setStatus.execute(reopen())))
-        .toBe("failed_precondition");
+      expect(await rejection(setStatus.execute(reopen()))).toBe(
+        "failed_precondition",
+      );
     });
 
     it("rejects reopening when an active group took the name", async () => {
       await uow.groups.save(group({id: "group-y"}));
-      expect(await rejection(setStatus.execute(reopen())))
-        .toBe("failed_precondition");
+      expect(await rejection(setStatus.execute(reopen()))).toBe(
+        "failed_precondition",
+      );
     });
 
-    it("allows reopening when the same name is in another venue",
-      async () => {
-        await uow.groups.save(group({id: "group-y", venueId: "venue-2"}));
-        await expect(setStatus.execute(reopen())).resolves.toBeDefined();
-      });
+    it("allows reopening when the same name is in another venue", async () => {
+      await uow.groups.save(group({id: "group-y", venueId: "venue-2"}));
+      await expect(setStatus.execute(reopen())).resolves.toBeDefined();
+    });
   });
 
   it("rejects a status that is already set", async () => {
-    expect(await rejection(setStatus.execute(close({status: "active"}))))
-      .toBe("failed_precondition");
+    expect(await rejection(setStatus.execute(close({status: "active"})))).toBe(
+      "failed_precondition",
+    );
   });
 
   it("rejects a group that does not exist", async () => {
-    expect(await rejection(setStatus.execute(close({groupId: "nope"}))))
-      .toBe("not_found");
+    expect(await rejection(setStatus.execute(close({groupId: "nope"})))).toBe(
+      "not_found",
+    );
   });
 
-  it.each<Role>(["coordinator", "accountant", "teacher", "guardian",
-    "adultPlayer"])("rejects %s", async (role) => {
+  it.each<Role>([
+    "coordinator",
+    "accountant",
+    "teacher",
+    "guardian",
+    "adultPlayer",
+  ])("rejects %s", async (role) => {
     await memberships.save(member("u-1", role));
     const code = await rejection(setStatus.execute(close({actorUid: "u-1"})));
     expect(code).toBe("permission_denied");

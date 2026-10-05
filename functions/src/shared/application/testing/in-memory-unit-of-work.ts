@@ -3,22 +3,11 @@ import type {
   Group,
   Venue,
 } from "../../../structure/domain/structure.js";
-import type {
-  TransactionContext,
-  UnitOfWork,
-} from "../unit-of-work.js";
-import type {
-  InMemoryAuditLogWriter,
-} from "../../../audit/application/testing/in-memory-audit-log-writer.js";
-import type {
-  InMemoryMembershipRepository,
-} from "../../../membership/application/testing/in-memory-membership-repository.js";
-import {
-  InMemoryStructureRepository,
-} from "../../../structure/application/testing/in-memory-structure-repository.js";
-import {
-  InMemoryTenantRepository,
-} from "../../../tenant/application/testing/in-memory-tenant-repository.js";
+import type {TransactionContext, UnitOfWork} from "../unit-of-work.js";
+import type {InMemoryAuditLogWriter} from "../../../audit/application/testing/in-memory-audit-log-writer.js";
+import type {InMemoryMembershipRepository} from "../../../membership/application/testing/in-memory-membership-repository.js";
+import {InMemoryStructureRepository} from "../../../structure/application/testing/in-memory-structure-repository.js";
+import {InMemoryTenantRepository} from "../../../tenant/application/testing/in-memory-tenant-repository.js";
 
 type StructureRepositories = {
   tenants: InMemoryTenantRepository;
@@ -40,12 +29,13 @@ export class InMemoryUnitOfWork implements UnitOfWork {
     structure: Partial<StructureRepositories> = {},
   ) {
     this.tenants = structure.tenants ?? new InMemoryTenantRepository();
-    this.venues = structure.venues ??
-      new InMemoryStructureRepository<Venue>("venue");
-    this.categories = structure.categories ??
+    this.venues =
+      structure.venues ?? new InMemoryStructureRepository<Venue>("venue");
+    this.categories =
+      structure.categories ??
       new InMemoryStructureRepository<Category>("category");
-    this.groups = structure.groups ??
-      new InMemoryStructureRepository<Group>("group");
+    this.groups =
+      structure.groups ?? new InMemoryStructureRepository<Group>("group");
   }
 
   async run<T>(work: (tx: TransactionContext) => Promise<T>): Promise<T> {

@@ -2,9 +2,7 @@ import {ROLES, type Role} from "../../../membership/domain/role.js";
 import {type Membership} from "../../../membership/domain/membership.js";
 import {Timestamp} from "firebase-admin/firestore";
 import {beforeEach, describe, expect, it} from "vitest";
-import {
-  FirestoreMembershipRepository,
-} from "../../../membership/infrastructure/firestore/firestore-membership-repository.js";
+import {FirestoreMembershipRepository} from "../../../membership/infrastructure/firestore/firestore-membership-repository.js";
 import {
   callApi,
   clearAuth,
@@ -37,8 +35,9 @@ const membership = (
 });
 
 const audit = async (tenantId = "tenant-a") =>
-  (await db.collection(`tenants/${tenantId}/auditLog`).get())
-    .docs.map((d) => d.data());
+  (await db.collection(`tenants/${tenantId}/auditLog`).get()).docs.map((d) =>
+    d.data(),
+  );
 
 const seedVenue = (id: string, fields: Record<string, unknown> = {}) =>
   db.doc(`tenants/tenant-a/venues/${id}`).set({
@@ -154,7 +153,11 @@ describe("venue routes — authentication, isolation and validation", () => {
     describe(route.name, () => {
       it("rejects a caller without a token", async () => {
         const {status, body} = await api(
-          route.method, route.path, undefined, route.body());
+          route.method,
+          route.path,
+          undefined,
+          route.body(),
+        );
         expect(status).toBe(401);
         expect(body.error.code).toBe("unauthenticated");
         expect(await audit()).toHaveLength(0);
@@ -162,7 +165,11 @@ describe("venue routes — authentication, isolation and validation", () => {
 
       it("denies an owner of another tenant", async () => {
         const {status, body} = await api(
-          route.method, route.path, ownerB, route.body());
+          route.method,
+          route.path,
+          ownerB,
+          route.body(),
+        );
         expect(status).toBe(403);
         expect(body.error.code).toBe("permission_denied");
         expect(await audit()).toHaveLength(0);
@@ -170,32 +177,40 @@ describe("venue routes — authentication, isolation and validation", () => {
 
       it.each(NON_OWNERS)("denies a %s", async (role) => {
         const {status, body} = await api(
-          route.method, route.path, byRole.get(role), route.body());
+          route.method,
+          route.path,
+          byRole.get(role),
+          route.body(),
+        );
         expect(status).toBe(403);
         expect(body.error.code).toBe("permission_denied");
         expect(await audit()).toHaveLength(0);
       });
 
-      it("denies an owner right after being deactivated, same token",
-        async () => {
-          await memberships.save(membership(
-            owner.uid, "tenant-a", "owner", {status: "inactive"}));
-          const {status, body} = await api(
-            route.method, route.path, owner, route.body());
-          expect(status).toBe(403);
-          expect(body.error.code).toBe("permission_denied");
-          expect(await audit()).toHaveLength(0);
-        });
+      it("denies an owner right after being deactivated, same token", async () => {
+        await memberships.save(
+          membership(owner.uid, "tenant-a", "owner", {status: "inactive"}),
+        );
+        const {status, body} = await api(
+          route.method,
+          route.path,
+          owner,
+          route.body(),
+        );
+        expect(status).toBe(403);
+        expect(body.error.code).toBe("permission_denied");
+        expect(await audit()).toHaveLength(0);
+      });
 
       it.each([...route.invalid, ["no body", undefined]] as [
-        string, unknown][])("rejects %s as invalid_argument",
-        async (_name, data) => {
-          const {status, body} = await api(
-            route.method, route.path, owner, data);
-          expect(status).toBe(400);
-          expect(body.error.code).toBe("invalid_argument");
-          expect(await audit()).toHaveLength(0);
-        });
+        string,
+        unknown,
+      ][])("rejects %s as invalid_argument", async (_name, data) => {
+        const {status, body} = await api(route.method, route.path, owner, data);
+        expect(status).toBe(400);
+        expect(body.error.code).toBe("invalid_argument");
+        expect(await audit()).toHaveLength(0);
+      });
     });
   }
 });
@@ -207,35 +222,43 @@ describe("POST /venues", () => {
     ...overrides,
   });
 
-  it("creates a venue, returns its id with 201 and audits it once",
-    async () => {
-      const {status, body} = await api(
-        "POST", VENUES, owner, input({facility: "Cancha 2"}));
-      expect(status).toBe(201);
-      const venueId = body.venueId as string;
-      expect(venueId).toBeTruthy();
-      const doc = (await db.doc(`tenants/tenant-a/venues/${venueId}`).get())
-        .data()!;
-      expect(doc).toMatchObject({
-        name: "Sede Sur",
-        address: "Calle 9",
-        facility: "Cancha 2",
-        status: "active",
-      });
-      const entries = await audit();
-      expect(entries).toHaveLength(1);
-      expect(entries[0]).toMatchObject({
-        actorUid: owner.uid,
-        action: "venue.created",
-        target: {type: "venue", id: venueId},
-        before: {},
-      });
+  it("creates a venue, returns its id with 201 and audits it once", async () => {
+    const {status, body} = await api(
+      "POST",
+      VENUES,
+      owner,
+      input({facility: "Cancha 2"}),
+    );
+    expect(status).toBe(201);
+    const venueId = body.venueId as string;
+    expect(venueId).toBeTruthy();
+    const doc = (
+      await db.doc(`tenants/tenant-a/venues/${venueId}`).get()
+    ).data()!;
+    expect(doc).toMatchObject({
+      name: "Sede Sur",
+      address: "Calle 9",
+      facility: "Cancha 2",
+      status: "active",
     });
+    const entries = await audit();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      actorUid: owner.uid,
+      action: "venue.created",
+      target: {type: "venue", id: venueId},
+      before: {},
+    });
+  });
 
   it("rejects a duplicate active name as failed_precondition", async () => {
     await seedVenue("venue-1");
     const {status, body} = await api(
-      "POST", VENUES, owner, input({name: "sede norte"}));
+      "POST",
+      VENUES,
+      owner,
+      input({name: "sede norte"}),
+    );
     expect(status).toBe(409);
     expect(body.error.code).toBe("failed_precondition");
     expect(await audit()).toHaveLength(0);
@@ -252,11 +275,16 @@ describe("PUT /venues/:venueId", () => {
   it("updates an existing venue", async () => {
     await seedVenue("venue-1");
     const {status, body} = await api(
-      "PUT", `${VENUES}/venue-1`, owner, input());
+      "PUT",
+      `${VENUES}/venue-1`,
+      owner,
+      input(),
+    );
     expect(status).toBe(200);
     expect(body).toEqual({venueId: "venue-1"});
-    expect((await db.doc("tenants/tenant-a/venues/venue-1").get()).data()!
-      .name).toBe("Sede Centro");
+    expect(
+      (await db.doc("tenants/tenant-a/venues/venue-1").get()).data()!.name,
+    ).toBe("Sede Centro");
     expect((await audit())[0]).toMatchObject({
       action: "venue.updated",
       before: {name: "Sede Norte"},
@@ -268,14 +296,17 @@ describe("PUT /venues/:venueId", () => {
     await seedVenue("venue-1");
     await seedVenue("venue-2", {name: "Sede Centro"});
     const {status, body} = await api(
-      "PUT", `${VENUES}/venue-1`, owner, input({name: "sede centro"}));
+      "PUT",
+      `${VENUES}/venue-1`,
+      owner,
+      input({name: "sede centro"}),
+    );
     expect(status).toBe(409);
     expect(body.error.code).toBe("failed_precondition");
   });
 
   it("rejects a missing venue as not_found", async () => {
-    const {status, body} = await api(
-      "PUT", `${VENUES}/nope`, owner, input());
+    const {status, body} = await api("PUT", `${VENUES}/nope`, owner, input());
     expect(status).toBe(404);
     expect(body.error.code).toBe("not_found");
   });
@@ -289,11 +320,16 @@ describe("PUT /venues/:venueId", () => {
       updatedAt: Timestamp.fromDate(T0),
     });
     const {status, body} = await api(
-      "PUT", `${VENUES}/venue-b`, owner, input());
+      "PUT",
+      `${VENUES}/venue-b`,
+      owner,
+      input(),
+    );
     expect(status).toBe(404);
     expect(body.error.code).toBe("not_found");
-    expect((await db.doc("tenants/tenant-b/venues/venue-b").get()).data()!
-      .name).toBe("Sede B");
+    expect(
+      (await db.doc("tenants/tenant-b/venues/venue-b").get()).data()!.name,
+    ).toBe("Sede B");
   });
 });
 
@@ -316,26 +352,28 @@ describe("PATCH /venues/:venueId/status", () => {
     expect(entries).toHaveLength(2);
     const actions = entries.map((e) => e.action).sort();
     expect(actions).toEqual(["venue.closed", "venue.reopened"]);
-    expect(entries.find((e) => e.action === "venue.closed")!.reason)
-      .toBe("Obras");
+    expect(entries.find((e) => e.action === "venue.closed")!.reason).toBe(
+      "Obras",
+    );
   });
 
   it("never deletes the venue document", async () => {
     await patch({status: "closed"});
-    expect((await db.doc("tenants/tenant-a/venues/venue-1").get()).exists)
-      .toBe(true);
+    expect((await db.doc("tenants/tenant-a/venues/venue-1").get()).exists).toBe(
+      true,
+    );
   });
 
-  it("rejects closing a venue with active groups, changing nothing",
-    async () => {
-      await seedGroup("group-1");
-      const {status, body} = await patch({status: "closed"});
-      expect(status).toBe(409);
-      expect(body.error.code).toBe("failed_precondition");
-      expect((await db.doc("tenants/tenant-a/venues/venue-1").get()).data()!
-        .status).toBe("active");
-      expect(await audit()).toHaveLength(0);
-    });
+  it("rejects closing a venue with active groups, changing nothing", async () => {
+    await seedGroup("group-1");
+    const {status, body} = await patch({status: "closed"});
+    expect(status).toBe(409);
+    expect(body.error.code).toBe("failed_precondition");
+    expect(
+      (await db.doc("tenants/tenant-a/venues/venue-1").get()).data()!.status,
+    ).toBe("active");
+    expect(await audit()).toHaveLength(0);
+  });
 
   it("rejects a missing venue as not_found", async () => {
     const {status, body} = await patch({status: "closed"}, "nope");
@@ -347,14 +385,24 @@ describe("PATCH /venues/:venueId/status", () => {
 describe("structureApi — shared behavior", () => {
   it("answers 404 on an unknown route", async () => {
     const {status, body} = await callApi(
-      "structureApi", "GET", "/nowhere", undefined, owner.idToken);
+      "structureApi",
+      "GET",
+      "/nowhere",
+      undefined,
+      owner.idToken,
+    );
     expect(status).toBe(404);
     expect(body.error.code).toBe("not_found");
   });
 
   it("answers 404 on a method the route does not have", async () => {
     const {status, body} = await callApi(
-      "structureApi", "DELETE", `${VENUES}/venue-1`, undefined, owner.idToken);
+      "structureApi",
+      "DELETE",
+      `${VENUES}/venue-1`,
+      undefined,
+      owner.idToken,
+    );
     expect(status).toBe(404);
     expect(body.error.code).toBe("not_found");
   });

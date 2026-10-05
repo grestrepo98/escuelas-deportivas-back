@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   checks:
-    name: Lint, typecheck, build, unit tests
+    name: Format, lint, typecheck, build, unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -26,6 +26,7 @@ jobs:
           cache: npm
           cache-dependency-path: functions/package-lock.json
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build

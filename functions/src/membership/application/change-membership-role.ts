@@ -1,14 +1,26 @@
 import {DomainError} from "../../shared/domain/errors.js";
 import type {Clock} from "../../shared/domain/clock.js";
-import type {UnitOfWork} from "../../shared/application/unit-of-work.js";
-import {isActiveMembershipOf, membershipId} from "../domain/membership.js";
+import type {
+  TransactionContext,
+  UnitOfWork,
+} from "../../shared/application/unit-of-work.js";
+import {
+  isActiveMembershipOf,
+  membershipId,
+  type Scope,
+} from "../domain/membership.js";
 import type {Role} from "../domain/role.js";
+import {resolveScopeForRole, type ScopeInput} from "../domain/scope.js";
+import {assertScopeReferences} from "./scope-references.js";
 
 export type ChangeMembershipRoleInput = {
   tenantId: string;
   actorUid: string;
   targetUid: string;
   newRole: Role;
+  // Required for coordinator (venues) and teacher (groups); owner and
+  // accountant end up with an empty scope.
+  scope?: ScopeInput;
   reason?: string;
   device?: {userAgent?: string};
 };
@@ -29,7 +41,8 @@ export class ChangeMembershipRole {
   ): Promise<ChangeMembershipRoleResult> {
     const {tenantId, actorUid, targetUid, newRole} = input;
 
-    return this.unitOfWork.run(async ({memberships, auditLog}) => {
+    return this.unitOfWork.run(async (tx) => {
+      const {memberships, auditLog} = tx;
       const actor = await memberships.get(actorUid, tenantId);
       if (!isActiveMembershipOf(actor, tenantId) || actor?.role !== "owner") {
         throw new DomainError(
@@ -63,9 +76,12 @@ export class ChangeMembershipRole {
         }
       }
 
+      const scope = await this.scopeFor(tx, input, target.scope);
+
       const updated = {
         ...target,
         role: newRole,
+        scope,
         updatedAt: this.clock.now(),
       };
       await memberships.save(updated);
@@ -77,13 +93,38 @@ export class ChangeMembershipRole {
         actorRole: actor.role,
         action: "membership.role_changed",
         target: {type: "membership", id},
-        before: {role: target.role},
-        after: {role: newRole},
+        before: {role: target.role, scope: target.scope},
+        after: {role: newRole, scope},
         ...(input.reason !== undefined && {reason: input.reason}),
         device: input.device ?? {},
       });
 
       return {membershipId: id, role: newRole};
     });
+  }
+
+  // Role and scope change together, so a coordinator never ends up without
+  // venues nor an accountant with some.
+  private async scopeFor(
+    tx: TransactionContext,
+    input: ChangeMembershipRoleInput,
+    current: Scope,
+  ): Promise<Scope> {
+    const {newRole, scope: requested, tenantId} = input;
+
+    // Their scope is made of players, which survive the role change.
+    if (newRole === "guardian" || newRole === "adultPlayer") {
+      if (requested?.venueIds?.length || requested?.groupIds?.length) {
+        throw new DomainError(
+          "invalid_argument",
+          `A ${newRole} is not scoped by venues or groups`,
+        );
+      }
+      return current;
+    }
+
+    const scope = resolveScopeForRole(newRole, requested);
+    await assertScopeReferences(tx, tenantId, scope);
+    return scope;
   }
 }

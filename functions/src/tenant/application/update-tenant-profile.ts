@@ -18,8 +18,9 @@ export type UpdateTenantProfileResult = {tenantId: string};
 
 const snapshot = (tenant: Tenant): Record<string, unknown> => ({
   name: tenant.name,
-  ...(tenant.idrdRegistration !== undefined &&
-    {idrdRegistration: tenant.idrdRegistration}),
+  ...(tenant.idrdRegistration !== undefined && {
+    idrdRegistration: tenant.idrdRegistration,
+  }),
   contact: tenant.contact,
 });
 

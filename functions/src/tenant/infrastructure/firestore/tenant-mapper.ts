@@ -6,13 +6,12 @@ export function toTenantDoc(tenant: Tenant): DocumentData {
   return {
     name: tenant.name,
     status: tenant.status,
-    ...(tenant.idrdRegistration !== undefined &&
-      {idrdRegistration: tenant.idrdRegistration}),
+    ...(tenant.idrdRegistration !== undefined && {
+      idrdRegistration: tenant.idrdRegistration,
+    }),
     contact: {
-      ...(tenant.contact.email !== undefined &&
-        {email: tenant.contact.email}),
-      ...(tenant.contact.phone !== undefined &&
-        {phone: tenant.contact.phone}),
+      ...(tenant.contact.email !== undefined && {email: tenant.contact.email}),
+      ...(tenant.contact.phone !== undefined && {phone: tenant.contact.phone}),
     },
     createdAt: Timestamp.fromDate(tenant.createdAt),
     updatedAt: Timestamp.fromDate(tenant.updatedAt),
@@ -29,14 +28,14 @@ export function fromTenantDoc(id: string, data: DocumentData): Tenant {
     id,
     name: data.name,
     status: data.status,
-    ...(data.idrdRegistration !== undefined &&
-      {idrdRegistration: data.idrdRegistration}),
+    ...(data.idrdRegistration !== undefined && {
+      idrdRegistration: data.idrdRegistration,
+    }),
     contact: {
       ...(data.contact?.email !== undefined && {email: data.contact.email}),
       ...(data.contact?.phone !== undefined && {phone: data.contact.phone}),
     },
     createdAt,
-    updatedAt: (data.updatedAt as Timestamp | undefined)?.toDate() ??
-      createdAt,
+    updatedAt: (data.updatedAt as Timestamp | undefined)?.toDate() ?? createdAt,
   };
 }

@@ -5,21 +5,12 @@ import {
   type ScheduleSlot,
   type Venue,
 } from "../structure/domain/structure.js";
-import {
-  type Membership,
-  type Scope,
-} from "../membership/domain/membership.js";
-import {
-  type StructureRepository,
-} from "../structure/application/structure-repository.js";
+import {type Membership, type Scope} from "../membership/domain/membership.js";
+import {type StructureRepository} from "../structure/application/structure-repository.js";
 import type {Auth} from "firebase-admin/auth";
 import {Timestamp, type Firestore} from "firebase-admin/firestore";
-import {
-  FirestoreMembershipRepository,
-} from "../membership/infrastructure/firestore/firestore-membership-repository.js";
-import {
-  FirestoreStructureRepository,
-} from "../structure/infrastructure/firestore/firestore-structure-repository.js";
+import {FirestoreMembershipRepository} from "../membership/infrastructure/firestore/firestore-membership-repository.js";
+import {FirestoreStructureRepository} from "../structure/infrastructure/firestore/firestore-structure-repository.js";
 import {
   categoryMapper,
   groupMapper,
@@ -206,13 +197,15 @@ export function parseSeedArgs(
     throw new Error("Missing --target. Use --target emulator or --target dev");
   }
   const hasEmulators = Boolean(
-    env.FIRESTORE_EMULATOR_HOST || env.FIREBASE_AUTH_EMULATOR_HOST);
+    env.FIRESTORE_EMULATOR_HOST || env.FIREBASE_AUTH_EMULATOR_HOST,
+  );
 
   if (target === "emulator") {
     if (!env.FIRESTORE_EMULATOR_HOST || !env.FIREBASE_AUTH_EMULATOR_HOST) {
       throw new Error(
         "--target emulator needs FIRESTORE_EMULATOR_HOST and " +
-        "FIREBASE_AUTH_EMULATOR_HOST (run it through firebase emulators:exec)");
+          "FIREBASE_AUTH_EMULATOR_HOST (run it through firebase emulators:exec)",
+      );
     }
     return {
       target,
@@ -225,12 +218,14 @@ export function parseSeedArgs(
     if (hasEmulators) {
       throw new Error(
         "--target dev refused: emulator variables are set, so writes would " +
-        "go to the emulator, not to dev. Unset them first");
+          "go to the emulator, not to dev. Unset them first",
+      );
     }
     if (!env.SEED_PASSWORD) {
       throw new Error(
         "--target dev needs SEED_PASSWORD (no default password in a real " +
-        "project)");
+          "project)",
+      );
     }
     return {
       target,
@@ -240,7 +235,8 @@ export function parseSeedArgs(
   }
 
   throw new Error(
-    `Unknown target "${target}". Allowed: emulator, dev (never prod)`);
+    `Unknown target "${target}". Allowed: emulator, dev (never prod)`,
+  );
 }
 
 type Counts = {created: number; updated: number; unchanged: number};
@@ -345,7 +341,10 @@ export async function runSeed(deps: SeedDeps): Promise<SeedSummary> {
   );
   await syncStructure(
     new FirestoreStructureRepository<Category>(
-      db, "categories", categoryMapper),
+      db,
+      "categories",
+      categoryMapper,
+    ),
     categoryMapper,
     SEED_CATEGORIES.map((c) => ({...c, status: "active" as const, ...stamps})),
     structure,
@@ -361,8 +360,12 @@ export async function runSeed(deps: SeedDeps): Promise<SeedSummary> {
   for (const user of SEED_USERS) {
     const existing = await repo.get(user.uid, user.tenantId);
     const scope = user.scope;
-    if (existing && existing.role === user.role &&
-        existing.status === "active" && sameScope(existing.scope, scope)) {
+    if (
+      existing &&
+      existing.role === user.role &&
+      existing.status === "active" &&
+      sameScope(existing.scope, scope)
+    ) {
       memberships.unchanged++;
       continue;
     }

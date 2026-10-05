@@ -22,6 +22,13 @@ comandos se corren desde `functions/`.
    (`shared/application/testing/fakes.test.ts`). Si participa en transacciones, debe poder hacer rollback.
 3. Si participa en transacciones, agrégalo a `TransactionContext`
    (`shared/application/unit-of-work.ts`, solo tipos).
+4. Si habla con un sistema que **no** entra en la transacción de Firestore (por
+   ejemplo Firebase Auth, `IdentityProvider`), no lo agregues a `TransactionContext`:
+   inyéctalo en el constructor del caso de uso, deja su adaptador en
+   `<módulo>/infrastructure/firebase/` y diseña el caso de uso en fases (validar en
+   una transacción, llamar al sistema externo, escribir en otra) de modo que un
+   fallo a medias deje algo inofensivo y reutilizable. Ejemplo: `InviteMember`
+   (ADR 0010).
 
 ## 2. Domain y application: el caso de uso
 

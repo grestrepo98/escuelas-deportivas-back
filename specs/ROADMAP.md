@@ -10,7 +10,8 @@
 | 02 `estructura-organizacion` | Fase 1 (parte 1) | Implementada (falta correr el seed y `smoke:dev` en `dev`) | Ficha de la organización, sedes, categorías, grupos, `getStructure` y script de alta de organización |
 | 03 `reestructura-modular-functions` | Deuda técnica | Implementada (falta el CI en un PR real y `seed:dev` + `smoke:dev` en `dev`) | Todo el código en `functions/src` por módulo con capas `domain`/`application`/`infrastructure`, fronteras por lint y despliegue a `dev` de la spec 02. Sin cambios de comportamiento |
 | 04 `api-http-por-modulo` | Deuda técnica | Borrador (solo documentación actualizada; falta el código) | Reemplaza las 10 callables por 3 APIs HTTP con Express (`membershipApi`, `tenantApi`, `structureApi`); ADR 0009. Sin cambios de casos de uso ni de reglas |
-| 05+ (por crear) | Fase 1 (resto) | Pendiente | Usuarios y alcance (7.2), jugadores y acudientes (7.3, 7.4), documentos (7.5), importación (7.18) |
+| 05 `usuarios-y-alcance` | Fase 1 (parte 2) | Implementada (falta `smoke:dev` en `dev` y el CI en un PR real) | Formato con Prettier y LF; invitar auxiliares, coordinadores y profesores (enlace manual, sin correo), alcance por sede/grupo, activar/desactivar y gancho de C21 (`MembershipDeactivationGuard`); ADR 0010 |
+| 06+ (por crear) | Fase 1 (resto) | Pendiente | Jugadores y acudientes (7.3, 7.4; incluye invitar acudientes y jugadores adultos), documentos (7.5), importación (7.18), plataforma (7.19) |
 | (por crear) | Fase 2 | Pendiente | Dinero |
 | (por crear) | Fase 3 | Pendiente | Cancha, control y endurecimiento |
 
@@ -21,7 +22,7 @@ Desde la spec 04, cada caso de uso nuevo se expone como una ruta en la API HTTP 
 | Módulo | Fase | Notas |
 | --- | --- | --- |
 | 7.1 Organización, sedes, estructura | 1 | Cerrar sede no la borra; un grupo, una sola sede |
-| 7.2 Usuarios, roles, accesos | 0 (base) y 1 | Fase 1: invitación, activar/desactivar, alcance |
+| 7.2 Usuarios, roles, accesos | 0 (base) y 1 | Fase 1: invitación, activar/desactivar, alcance (spec 05; acudientes y jugadores adultos esperan a los jugadores) |
 | 7.3 Jugadores e inscripción | 1 | Detección de duplicados; D-10 paginada + índice liviano |
 | 7.4 Acudientes y familias | 1 | |
 | 7.5 Documentos y pólizas | 1 | Signed URLs (D-08); verificar permiso de firma de la cuenta de servicio |
@@ -62,7 +63,7 @@ Desde la spec 04, cada caso de uso nuevo se expone como una ruta en la API HTTP 
 | C18 Mora que llega a entrenar | 3 | Política `alertar`/`bloquear` configurable; hoy solo alerta (Q3) |
 | C19 Póliza vencida en partido | 1 | Estado "por decidir" en producto: la excepción del dueño no está definida |
 | C20 Cierre con diferencia | 2 | |
-| C21 Salida de coordinador | 2 | **Dependencia cruzada:** la desactivación (Fase 1) debe verificar caja abierta, que existe desde la Fase 2; definir el gancho en la spec de desactivación |
+| C21 Salida de coordinador | 2 | **Dependencia cruzada:** la desactivación (Fase 1) debe verificar caja abierta, que existe desde la Fase 2. Gancho definido en la spec 05: puerto `MembershipDeactivationGuard` con adaptador que siempre permite; la Fase 2 agrega el adaptador de caja abierta |
 | C22 Sin conexión | 2 y 3 | Efectivo pendiente hasta sincronizar (2); cola de asistencia (3) |
 
 ## Preguntas abiertas Q1–Q16

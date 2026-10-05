@@ -47,8 +47,9 @@ export class SetGroupStatus {
         if (status === "active") {
           await requireActiveVenue(venues, tenantId, group.venueId);
           await requireActiveCategory(categories, tenantId, group.categoryId);
-          const inVenue = (await groups.listByTenant(tenantId))
-            .filter((g) => g.venueId === group.venueId);
+          const inVenue = (await groups.listByTenant(tenantId)).filter(
+            (g) => g.venueId === group.venueId,
+          );
           if (isNameTaken(inVenue, group.name, group.id)) {
             throw new DomainError(
               "failed_precondition",

@@ -1,7 +1,5 @@
 import type {RequestHandler} from "express";
-import {
-  findMyMemberships,
-} from "../../../firestore/my-memberships-query.js";
+import {findMyMemberships} from "../../../firestore/my-memberships-query.js";
 import {firestore} from "../../../../../shared/infrastructure/admin.js";
 import {requireUid} from "../../../authorize.js";
 import {listMyMembershipsOutput} from "./schema.js";

@@ -14,7 +14,8 @@ async function main(): Promise<void> {
   const app = initializeApp({projectId: args.projectId});
   console.log(
     `Creating "${args.tenantId}" on "${args.target}" ` +
-    `(project ${args.projectId})...`);
+      `(project ${args.projectId})...`,
+  );
   const result = await runCreateTenant({
     db: getFirestore(app),
     auth: getAuth(app),
@@ -25,7 +26,8 @@ async function main(): Promise<void> {
   console.log(JSON.stringify(result, null, 2));
   console.log(
     "\nSend the reset link to the owner over a private channel: " +
-    "whoever opens it can set the owner's password.");
+      "whoever opens it can set the owner's password.",
+  );
 }
 
 main().catch((error) => {

@@ -1,8 +1,5 @@
 import {Router} from "express";
-import {
-  createCategory,
-  updateCategory,
-} from "./routes/saveCategory/handler.js";
+import {createCategory, updateCategory} from "./routes/saveCategory/handler.js";
 import {createGroup, updateGroup} from "./routes/saveGroup/handler.js";
 import {createVenue, updateVenue} from "./routes/saveVenue/handler.js";
 import {setCategoryStatus} from "./routes/setCategoryStatus/handler.js";
@@ -21,7 +18,9 @@ export function structureRouter(): Router {
   router.post("/tenants/:tenantId/categories", createCategory);
   router.put("/tenants/:tenantId/categories/:categoryId", updateCategory);
   router.patch(
-    "/tenants/:tenantId/categories/:categoryId/status", setCategoryStatus);
+    "/tenants/:tenantId/categories/:categoryId/status",
+    setCategoryStatus,
+  );
 
   router.post("/tenants/:tenantId/groups", createGroup);
   router.put("/tenants/:tenantId/groups/:groupId", updateGroup);

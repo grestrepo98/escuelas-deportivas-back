@@ -1,8 +1,6 @@
 import type {RequestHandler} from "express";
 import {SaveGroup} from "../../../../application/save-group.js";
-import {
-  FirestoreUnitOfWork,
-} from "../../../../../shared/infrastructure/firestore-unit-of-work.js";
+import {FirestoreUnitOfWork} from "../../../../../shared/infrastructure/firestore-unit-of-work.js";
 import {firestore} from "../../../../../shared/infrastructure/admin.js";
 import {
   authorizeTenantMember,
@@ -10,14 +8,8 @@ import {
 } from "../../../../../membership/infrastructure/authorize.js";
 import {deviceOf} from "../../../../../shared/infrastructure/http/device.js";
 import {parseInput} from "../../../../../shared/infrastructure/http/parse.js";
-import {
-  systemClock,
-} from "../../../../../shared/infrastructure/system-clock.js";
-import {
-  createGroupInput,
-  saveGroupOutput,
-  updateGroupInput,
-} from "./schema.js";
+import {systemClock} from "../../../../../shared/infrastructure/system-clock.js";
+import {createGroupInput, saveGroupOutput, updateGroupInput} from "./schema.js";
 
 export const createGroup: RequestHandler<{tenantId: string}> = async (
   req,
@@ -38,9 +30,10 @@ export const createGroup: RequestHandler<{tenantId: string}> = async (
 };
 
 // The venue of an existing group is never sent: the use case keeps it.
-export const updateGroup: RequestHandler<
-  {tenantId: string; groupId: string}
-> = async (req, res) => {
+export const updateGroup: RequestHandler<{
+  tenantId: string;
+  groupId: string;
+}> = async (req, res) => {
   const actorUid = requireUid(res.locals.uid);
   const input = parseInput(updateGroupInput, req.body);
   const {tenantId, groupId} = req.params;

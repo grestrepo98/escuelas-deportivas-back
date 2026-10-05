@@ -7,11 +7,15 @@ export const INTEGRATION_PROJECT_ID = "demo-escuelas-integration";
 export function testApp(): App {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
   if (!host) {
-    throw new Error("FIRESTORE_EMULATOR_HOST is not set: run through " +
-      "`npm run test:integration` so the emulator is available");
+    throw new Error(
+      "FIRESTORE_EMULATOR_HOST is not set: run through " +
+        "`npm run test:integration` so the emulator is available",
+    );
   }
-  return getApps().find((a) => a.name === "integration") ??
-    initializeApp({projectId: INTEGRATION_PROJECT_ID}, "integration");
+  return (
+    getApps().find((a) => a.name === "integration") ??
+    initializeApp({projectId: INTEGRATION_PROJECT_ID}, "integration")
+  );
 }
 
 export function testDb(): Firestore {
@@ -20,7 +24,8 @@ export function testDb(): Firestore {
 
 export async function clearFirestore(): Promise<void> {
   const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const url = `http://${host}/emulator/v1/projects/` +
+  const url =
+    `http://${host}/emulator/v1/projects/` +
     `${INTEGRATION_PROJECT_ID}/databases/(default)/documents`;
   const response = await fetch(url, {method: "DELETE"});
   if (!response.ok) {

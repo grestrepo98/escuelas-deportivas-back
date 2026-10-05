@@ -1,4 +1,5 @@
 import {initializeApp} from "firebase-admin/app";
+import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
 import {
   parseSeedArgs,
@@ -9,7 +10,7 @@ import {
   type SeedUser,
 } from "./seed-lib.js";
 
-// End-to-end smoke test of the deployed module APIs (specs 01, 02 and 04).
+// End-to-end smoke test of the deployed module APIs (specs 01, 02, 04 and 05).
 // It signs in as seeded users and calls the real functions over HTTPS.
 //
 //   SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev
@@ -21,7 +22,8 @@ type CallResult = {status: number; body: any}; // eslint-disable-line
 
 const userOf = (role: SeedUser["role"], tenantId: string): SeedUser => {
   const user = SEED_USERS.find(
-    (u) => u.role === role && u.tenantId === tenantId);
+    (u) => u.role === role && u.tenantId === tenantId,
+  );
   if (!user) throw new Error(`No seed user for ${role} in ${tenantId}`);
   return user;
 };
@@ -32,16 +34,19 @@ async function main(): Promise<void> {
 
   const apiKey = isEmulator ? "fake" : process.env.FIREBASE_API_KEY;
   if (!apiKey) {
-    throw new Error("--target dev needs FIREBASE_API_KEY (the dev project's " +
-      "Web API key, used only to sign in the seed users)");
+    throw new Error(
+      "--target dev needs FIREBASE_API_KEY (the dev project's " +
+        "Web API key, used only to sign in the seed users)",
+    );
   }
-  const authBase = isEmulator ?
-    `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com` :
-    "https://identitytoolkit.googleapis.com";
+  const authBase = isEmulator
+    ? `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com`
+    : "https://identitytoolkit.googleapis.com";
   // `api` is the function name (membershipApi, tenantApi, structureApi).
-  const apiUrl = (api: string, path: string) => isEmulator ?
-    `http://127.0.0.1:5001/${args.projectId}/us-central1/${api}${path}` :
-    `https://us-central1-${args.projectId}.cloudfunctions.net/${api}${path}`;
+  const apiUrl = (api: string, path: string) =>
+    isEmulator
+      ? `http://127.0.0.1:5001/${args.projectId}/us-central1/${api}${path}`
+      : `https://us-central1-${args.projectId}.cloudfunctions.net/${api}${path}`;
 
   const signIn = async (user: SeedUser): Promise<string> => {
     const response = await fetch(
@@ -59,7 +64,8 @@ async function main(): Promise<void> {
     if (!response.ok) {
       throw new Error(
         `Sign-in failed for ${user.email} (${response.status}). ` +
-        "Was the seed run against this target with this password?");
+          "Was the seed run against this target with this password?",
+      );
     }
     return ((await response.json()) as {idToken: string}).idToken;
   };
@@ -82,9 +88,19 @@ async function main(): Promise<void> {
     return {status: response.status, body: await response.json()};
   };
   const changeRole = (
-    token: string, uid: string, newRole: string, reason?: string,
-  ) => call("membershipApi", "PATCH",
-    `/tenants/tenant-a/memberships/${uid}/role`, {newRole, reason}, token);
+    token: string,
+    uid: string,
+    newRole: string,
+    reason?: string,
+    scope?: {venueIds?: string[]; groupIds?: string[]},
+  ) =>
+    call(
+      "membershipApi",
+      "PATCH",
+      `/tenants/tenant-a/memberships/${uid}/role`,
+      {newRole, reason, scope},
+      token,
+    );
 
   const app = initializeApp({projectId: args.projectId});
   const db = getFirestore(app);
@@ -106,8 +122,10 @@ async function main(): Promise<void> {
   };
   const expectEqual = (actual: unknown, expected: unknown, what: string) => {
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      throw new Error(`${what}: expected ${JSON.stringify(expected)}, ` +
-        `got ${JSON.stringify(actual)}`);
+      throw new Error(
+        `${what}: expected ${JSON.stringify(expected)}, ` +
+          `got ${JSON.stringify(actual)}`,
+      );
     }
   };
 
@@ -116,66 +134,107 @@ async function main(): Promise<void> {
   const listMine = (token?: string) =>
     call("membershipApi", "GET", "/me/memberships", undefined, token);
 
-  await check("a call without a token is rejected as unauthenticated",
+  await check(
+    "a call without a token is rejected as unauthenticated",
     async () => {
       const {status, body} = await listMine();
-      expectEqual([status, body.error?.code], [401, "unauthenticated"],
-        "status");
-    });
+      expectEqual(
+        [status, body.error?.code],
+        [401, "unauthenticated"],
+        "status",
+      );
+    },
+  );
 
   await check("GET /me/memberships answers for a seed user", async () => {
     const {status, body} = await listMine(tokenA);
     expectEqual(status, 200, "status");
     const mine = body.memberships.find(
-      (m: {tenantId: string}) => m.tenantId === "tenant-a");
-    expectEqual([mine?.role, mine?.tenantName], ["owner", "Escuela A (seed)"],
-      "tenant-a membership");
+      (m: {tenantId: string}) => m.tenantId === "tenant-a",
+    );
+    expectEqual(
+      [mine?.role, mine?.tenantName],
+      ["owner", "Escuela A (seed)"],
+      "tenant-a membership",
+    );
   });
 
   await check("a tenant-b user does not see tenant-a", async () => {
     const {body} = await listMine(tokenB);
     expectEqual(
       body.memberships.map((m: {tenantId: string}) => m.tenantId),
-      ["tenant-b"], "visible tenants");
+      ["tenant-b"],
+      "visible tenants",
+    );
   });
 
   await check("a tenant-b owner cannot change roles in tenant-a", async () => {
     const {status, body} = await changeRole(
-      tokenB, coordinatorA.uid, "teacher");
-    expectEqual([status, body.error?.code], [403, "permission_denied"],
-      "status");
+      tokenB,
+      coordinatorA.uid,
+      "teacher",
+    );
+    expectEqual(
+      [status, body.error?.code],
+      [403, "permission_denied"],
+      "status",
+    );
   });
 
   await check("a role change leaves its entry in the audit log", async () => {
-    const membershipRef =
-      db.doc(`memberships/${coordinatorA.uid}_tenant-a`);
+    const membershipRef = db.doc(`memberships/${coordinatorA.uid}_tenant-a`);
     const before = (await membershipRef.get()).data()?.role;
-    expectEqual(before, "coordinator",
-      "baseline role (run the seed to restore it)");
+    expectEqual(
+      before,
+      "coordinator",
+      "baseline role (run the seed to restore it)",
+    );
 
+    // A teacher needs a group and a coordinator a venue (spec 05).
+    const group = SEED_GROUPS.find((g) => g.tenantId === "tenant-a")!;
     const reason = `smoke-${Date.now()}`;
     try {
       const {status, body} = await changeRole(
-        tokenA, coordinatorA.uid, "teacher", reason);
+        tokenA,
+        coordinatorA.uid,
+        "teacher",
+        reason,
+        {groupIds: [group.id]},
+      );
       expectEqual([status, body.role], [200, "teacher"], "response");
 
-      const entries = await db.collection("tenants/tenant-a/auditLog")
-        .where("reason", "==", reason).get();
+      const entries = await db
+        .collection("tenants/tenant-a/auditLog")
+        .where("reason", "==", reason)
+        .get();
       expectEqual(entries.size, 1, "audit entries for this change");
       const entry = entries.docs[0].data();
       expectEqual(
-        [entry.before?.role, entry.after?.role, entry.actorUid,
-          entry.at !== undefined],
-        ["coordinator", "teacher", ownerA.uid, true],
+        [
+          entry.before?.role,
+          entry.after?.role,
+          entry.after?.scope?.groupIds,
+          entry.actorUid,
+          entry.at !== undefined,
+        ],
+        ["coordinator", "teacher", [group.id], ownerA.uid, true],
         "audit entry",
       );
     } finally {
       // Put the baseline back (this adds a second, honest audit entry).
       await changeRole(
-        tokenA, coordinatorA.uid, "coordinator", `${reason}-restore`);
+        tokenA,
+        coordinatorA.uid,
+        "coordinator",
+        `${reason}-restore`,
+        {venueIds: coordinatorA.scope.venueIds},
+      );
     }
-    expectEqual((await membershipRef.get()).data()?.role, "coordinator",
-      "role after restore");
+    expectEqual(
+      (await membershipRef.get()).data()?.role,
+      "coordinator",
+      "role after restore",
+    );
   });
 
   // Spec 02: organization structure.
@@ -183,8 +242,13 @@ async function main(): Promise<void> {
   const idsOf = (items: Dto[]) => items.map((i) => i.id).sort();
   const sorted = (items: string[]) => [...items].sort();
   const structureOf = async (token: string, query = "") =>
-    call("structureApi", "GET", `/tenants/tenant-a/structure${query}`,
-      undefined, token);
+    call(
+      "structureApi",
+      "GET",
+      `/tenants/tenant-a/structure${query}`,
+      undefined,
+      token,
+    );
   const saveVenue = (token: string, data: object) =>
     call("structureApi", "POST", "/tenants/tenant-a/venues", data, token);
 
@@ -192,7 +256,8 @@ async function main(): Promise<void> {
   const guardianA = userOf("guardian", "tenant-a");
   const coordinatorVenueId = coordinatorA.scope.venueIds[0];
   const teacherGroup = SEED_GROUPS.find(
-    (g) => g.id === teacherA.scope.groupIds[0])!;
+    (g) => g.id === teacherA.scope.groupIds[0],
+  )!;
   const seedIds = (items: {id: string; tenantId: string}[]) =>
     items.filter((i) => i.tenantId === "tenant-a").map((i) => i.id);
 
@@ -210,27 +275,39 @@ async function main(): Promise<void> {
     }
   });
 
-  await check("the seed coordinator sees only their venue and its groups",
+  await check(
+    "the seed coordinator sees only their venue and its groups",
     async () => {
       const token = await signIn(coordinatorA);
       const {status, body} = await structureOf(token);
       expectEqual(status, 200, "status");
       expectEqual(idsOf(body.venues), [coordinatorVenueId], "venues");
       const groups: {id: string; venueId: string}[] = body.groups;
-      expectEqual(groups.every((g) => g.venueId === coordinatorVenueId), true,
-        "every group belongs to the coordinator's venue");
-      const expected = SEED_GROUPS
-        .filter((g) => g.venueId === coordinatorVenueId).map((g) => g.id);
       expectEqual(
-        expected.filter((id) => !idsOf(groups).includes(id)), [],
-        "seeded groups of the coordinator's venue");
+        groups.every((g) => g.venueId === coordinatorVenueId),
+        true,
+        "every group belongs to the coordinator's venue",
+      );
+      const expected = SEED_GROUPS.filter(
+        (g) => g.venueId === coordinatorVenueId,
+      ).map((g) => g.id);
       expectEqual(
-        seedIds(SEED_CATEGORIES)
-          .filter((id) => !idsOf(body.categories).includes(id)),
-        [], "seeded categories");
-    });
+        expected.filter((id) => !idsOf(groups).includes(id)),
+        [],
+        "seeded groups of the coordinator's venue",
+      );
+      expectEqual(
+        seedIds(SEED_CATEGORIES).filter(
+          (id) => !idsOf(body.categories).includes(id),
+        ),
+        [],
+        "seeded categories",
+      );
+    },
+  );
 
-  await check("the seed teacher sees only their group, venue and category",
+  await check(
+    "the seed teacher sees only their group, venue and category",
     async () => {
       const token = await signIn(teacherA);
       const {status, body} = await structureOf(token);
@@ -238,70 +315,407 @@ async function main(): Promise<void> {
       expectEqual(idsOf(body.groups), [teacherGroup.id], "groups");
       expectEqual(idsOf(body.venues), [teacherGroup.venueId], "venues");
       expectEqual(
-        idsOf(body.categories), [teacherGroup.categoryId], "categories");
-    });
+        idsOf(body.categories),
+        [teacherGroup.categoryId],
+        "categories",
+      );
+    },
+  );
 
   await check("a guardian cannot read the structure", async () => {
     const token = await signIn(guardianA);
     const {status, body} = await structureOf(token);
-    expectEqual([status, body.error?.code], [403, "permission_denied"],
-      "status");
+    expectEqual(
+      [status, body.error?.code],
+      [403, "permission_denied"],
+      "status",
+    );
   });
 
-  await check("a tenant-b owner cannot read or write tenant-a structure",
+  await check(
+    "a tenant-b owner cannot read or write tenant-a structure",
     async () => {
       const read = await structureOf(tokenB);
-      expectEqual([read.status, read.body.error?.code],
-        [403, "permission_denied"], "read");
+      expectEqual(
+        [read.status, read.body.error?.code],
+        [403, "permission_denied"],
+        "read",
+      );
       const write = await saveVenue(tokenB, {name: "Intruso", address: "x"});
-      expectEqual([write.status, write.body.error?.code],
-        [403, "permission_denied"], "write");
-    });
+      expectEqual(
+        [write.status, write.body.error?.code],
+        [403, "permission_denied"],
+        "write",
+      );
+    },
+  );
 
   await check("a non-owner cannot write structure", async () => {
     const token = await signIn(coordinatorA);
-    const {status, body} = await saveVenue(
-      token, {name: "Sin permiso", address: "x"});
-    expectEqual([status, body.error?.code], [403, "permission_denied"],
-      "status");
+    const {status, body} = await saveVenue(token, {
+      name: "Sin permiso",
+      address: "x",
+    });
+    expectEqual(
+      [status, body.error?.code],
+      [403, "permission_denied"],
+      "status",
+    );
   });
 
-  await check("the owner creates and closes a venue, leaving its audit trail",
+  await check(
+    "the owner creates and closes a venue, leaving its audit trail",
     async () => {
       const name = `Smoke ${Date.now()}`;
-      const created = await saveVenue(
-        tokenA, {name, address: "Calle de prueba 1"});
+      const created = await saveVenue(tokenA, {
+        name,
+        address: "Calle de prueba 1",
+      });
       expectEqual(created.status, 201, "create status");
       const venueId: string = created.body.venueId;
 
-      const closed = await call("structureApi", "PATCH",
+      const closed = await call(
+        "structureApi",
+        "PATCH",
         `/tenants/tenant-a/venues/${venueId}/status`,
-        {status: "closed", reason: "smoke"}, tokenA);
-      expectEqual([closed.status, closed.body.status],
-        [200, "closed"], "close response");
+        {status: "closed", reason: "smoke"},
+        tokenA,
+      );
+      expectEqual(
+        [closed.status, closed.body.status],
+        [200, "closed"],
+        "close response",
+      );
 
-      const venue = (await db.doc(`tenants/tenant-a/venues/${venueId}`).get());
+      const venue = await db.doc(`tenants/tenant-a/venues/${venueId}`).get();
       expectEqual(venue.data()?.status, "closed", "venue stays, closed");
 
-      const entries = await db.collection("tenants/tenant-a/auditLog")
-        .where("target.id", "==", venueId).get();
+      const entries = await db
+        .collection("tenants/tenant-a/auditLog")
+        .where("target.id", "==", venueId)
+        .get();
       expectEqual(
         sorted(entries.docs.map((d) => d.data().action as string)),
-        ["venue.closed", "venue.created"], "audit actions");
+        ["venue.closed", "venue.created"],
+        "audit actions",
+      );
       expectEqual(
-        entries.docs.every((d) => d.data().actorUid === ownerA.uid), true,
-        "audit actor");
+        entries.docs.every((d) => d.data().actorUid === ownerA.uid),
+        true,
+        "audit actor",
+      );
 
       const hidden = await structureOf(tokenA);
-      expectEqual(idsOf(hidden.body.venues).includes(venueId), false,
-        "closed venue hidden by default");
+      expectEqual(
+        idsOf(hidden.body.venues).includes(venueId),
+        false,
+        "closed venue hidden by default",
+      );
       const shown = await structureOf(tokenA, "?includeClosed=true");
-      expectEqual(idsOf(shown.body.venues).includes(venueId), true,
-        "closed venue returned with includeClosed");
+      expectEqual(
+        idsOf(shown.body.venues).includes(venueId),
+        true,
+        "closed venue returned with includeClosed",
+      );
+    },
+  );
+
+  // Spec 05: users and scope. Everything it creates is removed at the end
+  // (the memberships and the account it made), so a rerun starts clean.
+  const membersPath = "/tenants/tenant-a/memberships";
+  const membershipCall = (
+    method: "GET" | "POST" | "PUT" | "PATCH",
+    path: string,
+    token: string,
+    data?: unknown,
+  ) => call("membershipApi", method, `${membersPath}${path}`, data, token);
+  const venuesA = SEED_VENUES.filter((v) => v.tenantId === "tenant-a").map(
+    (v) => v.id,
+  );
+  const otherVenue = venuesA.find((id) => id !== coordinatorVenueId)!;
+  const adminAuth = getAuth(app);
+  const invitedEmail = `smoke-${Date.now()}@example.com`;
+  const rejectedEmail = `smoke-rejected-${Date.now()}@example.com`;
+  type Member = {uid: string; email: string; role: string; status: string};
+  const membersOf = async (token: string): Promise<Member[]> => {
+    const {status, body} = await membershipCall("GET", "", token);
+    expectEqual(status, 200, "list status");
+    return body.memberships;
+  };
+  const accountExists = (email: string) =>
+    adminAuth.getUserByEmail(email).then(
+      () => true,
+      () => false,
+    );
+  const toClean: string[] = []; // uids whose tenant-a membership to remove
+  let invitedUid = "";
+
+  try {
+    await check(
+      "the owner invites a coordinator and gets a reset link",
+      async () => {
+        const {status, body} = await membershipCall("POST", "", tokenA, {
+          email: invitedEmail,
+          role: "coordinator",
+          scope: {venueIds: [coordinatorVenueId]},
+        });
+        expectEqual(
+          [status, body.role, typeof body.passwordResetLink],
+          [201, "coordinator", "string"],
+          "invite response",
+        );
+        invitedUid = body.uid;
+        toClean.push(invitedUid);
+
+        const entries = await db
+          .collection("tenants/tenant-a/auditLog")
+          .where("target.id", "==", `${invitedUid}_tenant-a`)
+          .get();
+        expectEqual(
+          entries.docs.map((d) => d.data().action),
+          ["membership.invited"],
+          "audit actions",
+        );
+      },
+    );
+
+    await check("inviting the same person again is a conflict", async () => {
+      const {status, body} = await membershipCall("POST", "", tokenA, {
+        email: invitedEmail,
+        role: "teacher",
+        scope: {groupIds: [teacherGroup.id]},
+      });
+      expectEqual(
+        [status, body.error?.code],
+        [409, "failed_precondition"],
+        "status",
+      );
     });
 
-  console.log(failures === 0 ? "\nAll smoke checks passed." :
-    `\n${failures} smoke check(s) FAILED.`);
+    await check(
+      "an invalid scope is rejected and creates no account",
+      async () => {
+        const {status, body} = await membershipCall("POST", "", tokenA, {
+          email: rejectedEmail,
+          role: "coordinator",
+        });
+        expectEqual(
+          [status, body.error?.code],
+          [400, "invalid_argument"],
+          "status",
+        );
+        expectEqual(await accountExists(rejectedEmail), false, "account");
+      },
+    );
+
+    await check(
+      "the owner lists the members, the invited one too",
+      async () => {
+        const invited = (await membersOf(tokenA)).find(
+          (m) => m.email === invitedEmail,
+        );
+        expectEqual(
+          [invited?.uid, invited?.role, invited?.status],
+          [invitedUid, "coordinator", "active"],
+          "invited member",
+        );
+      },
+    );
+
+    await check(
+      "a coordinator lists only the members of their venue",
+      async () => {
+        const token = await signIn(coordinatorA);
+        const visible = await membersOf(token);
+        expectEqual(
+          visible.some((m) => m.email === invitedEmail),
+          true,
+          "sees the coordinator invited to their venue",
+        );
+        expectEqual(
+          visible.some((m) => m.uid === ownerA.uid),
+          false,
+          "does not see the owner",
+        );
+        expectEqual(
+          visible.every((m) => ["coordinator", "teacher"].includes(m.role)),
+          true,
+          "only coordinators and teachers",
+        );
+      },
+    );
+
+    await check("a teacher cannot list the members", async () => {
+      const token = await signIn(teacherA);
+      const {status, body} = await membershipCall("GET", "", token);
+      expectEqual(
+        [status, body.error?.code],
+        [403, "permission_denied"],
+        "status",
+      );
+    });
+
+    await check(
+      "the owner moves the invited coordinator to a venue",
+      async () => {
+        const {status, body} = await membershipCall(
+          "PUT",
+          `/${invitedUid}/scope`,
+          tokenA,
+          {scope: {venueIds: [otherVenue]}},
+        );
+        expectEqual(
+          [status, body.scope?.venueIds],
+          [200, [otherVenue]],
+          "scope response",
+        );
+        const empty = await membershipCall(
+          "PUT",
+          `/${invitedUid}/scope`,
+          tokenA,
+          {scope: {}},
+        );
+        expectEqual(empty.status, 400, "a coordinator needs a venue");
+      },
+    );
+
+    await check(
+      "a deactivated user is cut off with the same token, until reactivated",
+      async () => {
+        const token = await signIn(coordinatorA);
+        expectEqual(
+          (await membershipCall("GET", "", token)).status,
+          200,
+          "before",
+        );
+        try {
+          const off = await membershipCall(
+            "PATCH",
+            `/${coordinatorA.uid}/status`,
+            tokenA,
+            {status: "inactive", reason: "smoke"},
+          );
+          expectEqual([off.status, off.body.status], [200, "inactive"], "off");
+
+          for (const [api, path] of [
+            ["membershipApi", membersPath],
+            ["structureApi", "/tenants/tenant-a/structure"],
+          ]) {
+            const {status, body} = await call(
+              api,
+              "GET",
+              path,
+              undefined,
+              token,
+            );
+            expectEqual(
+              [status, body.error?.code],
+              [403, "permission_denied"],
+              `${api} after deactivation`,
+            );
+          }
+        } finally {
+          await membershipCall("PATCH", `/${coordinatorA.uid}/status`, tokenA, {
+            status: "active",
+            reason: "smoke-restore",
+          });
+        }
+        expectEqual(
+          (await membershipCall("GET", "", token)).status,
+          200,
+          "after reactivation",
+        );
+      },
+    );
+
+    await check("the last active owner cannot be deactivated", async () => {
+      const owners = (await membersOf(tokenA)).filter(
+        (m) => m.role === "owner" && m.status === "active",
+      );
+      if (owners.length !== 1) {
+        console.log("      skipped: tenant-a has more than one active owner");
+        return;
+      }
+      const {status, body} = await membershipCall(
+        "PATCH",
+        `/${ownerA.uid}/status`,
+        tokenA,
+        {status: "inactive"},
+      );
+      if (status === 200) {
+        // The guard failed and the only owner is now inactive, so no API call
+        // can undo it (an inactive owner is denied): put it back directly.
+        await db
+          .doc(`memberships/${ownerA.uid}_tenant-a`)
+          .update({status: "active"});
+      }
+      expectEqual(
+        [status, body.error?.code],
+        [409, "failed_precondition"],
+        "status",
+      );
+    });
+
+    await check(
+      "an account that already signed in is reused, with no link",
+      async () => {
+        const {status, body} = await membershipCall("POST", "", tokenA, {
+          email: ownerB.email,
+          role: "accountant",
+        });
+        toClean.push(ownerB.uid);
+        expectEqual(
+          [status, body.uid, "passwordResetLink" in body],
+          [201, ownerB.uid, false],
+          "invite response",
+        );
+        const mine = await call(
+          "membershipApi",
+          "GET",
+          "/me/memberships",
+          undefined,
+          tokenB,
+        );
+        expectEqual(
+          mine.body.memberships
+            .map((m: {tenantId: string}) => m.tenantId)
+            .sort(),
+          ["tenant-a", "tenant-b"],
+          "the same user now belongs to both",
+        );
+      },
+    );
+
+    await check(
+      "the owner deactivates the invited member for good",
+      async () => {
+        const {status, body} = await membershipCall(
+          "PATCH",
+          `/${invitedUid}/status`,
+          tokenA,
+          {status: "inactive"},
+        );
+        expectEqual([status, body.status], [200, "inactive"], "response");
+        const member = (await membersOf(tokenA)).find(
+          (m) => m.uid === invitedUid,
+        );
+        expectEqual(member?.status, "inactive", "listed as inactive");
+      },
+    );
+  } finally {
+    for (const uid of toClean) {
+      await db.doc(`memberships/${uid}_tenant-a`).delete();
+    }
+    if (invitedUid) {
+      await adminAuth.deleteUser(invitedUid).catch(() => undefined);
+    }
+  }
+
+  console.log(
+    failures === 0
+      ? "\nAll smoke checks passed."
+      : `\n${failures} smoke check(s) FAILED.`,
+  );
   process.exit(failures === 0 ? 0 : 1);
 }
 

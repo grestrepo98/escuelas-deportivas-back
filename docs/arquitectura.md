@@ -53,7 +53,11 @@ app Express adentro. Express vive solo en `infrastructure/http`; `domain` y
 | API | Ruta | Caso de uso (`application`) | Quién | ADR |
 | --- | --- | --- | --- | --- |
 | `membershipApi` | `GET /me/memberships` | lectura pura (consulta en el adaptador) | cualquier sesión | 0002 |
-| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/role` | `ChangeMembershipRole` | `owner` | 0004 |
+| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/role` | `ChangeMembershipRole` (con `scope`) | `owner` | 0004, 0010 |
+| `membershipApi` | `POST /tenants/:tenantId/memberships` | `InviteMember` | `owner` | 0010 |
+| `membershipApi` | `GET /tenants/:tenantId/memberships` | `ListMemberships` | `owner`, `accountant`, `coordinator` (sus sedes) | 0010 |
+| `membershipApi` | `PATCH /tenants/:tenantId/memberships/:uid/status` | `SetMembershipStatus` | `owner` | 0010 |
+| `membershipApi` | `PUT /tenants/:tenantId/memberships/:uid/scope` | `SetMembershipScope` | `owner` | 0010 |
 | `tenantApi` | `PUT /tenants/:tenantId/profile` | `UpdateTenantProfile` | `owner` | 0007 |
 | `structureApi` | `POST /tenants/:tenantId/venues`, `PUT …/venues/:id`, `PATCH …/venues/:id/status` | `SaveVenue`, `SetVenueStatus` | `owner` | 0007 |
 | `structureApi` | las mismas tres rutas para `categories` | `SaveCategory`, `SetCategoryStatus` | `owner` | 0007 |
@@ -67,6 +71,8 @@ app Express adentro. Express vive solo en `infrastructure/http`; `domain` y
 | `MembershipRepository` | `FirestoreMembershipRepository` | `InMemoryMembershipRepository` |
 | `TenantRepository` | `FirestoreTenantRepository` | `InMemoryTenantRepository` |
 | `VenueRepository`, `CategoryRepository`, `GroupRepository` (todos `StructureRepository<T>`) | `FirestoreStructureRepository<T>` + un mapper por entidad | `InMemoryStructureRepository<T>` |
+| `IdentityProvider` (cuentas de Auth; no es transaccional) | `FirebaseIdentityProvider` (`infrastructure/firebase`) | `InMemoryIdentityProvider` |
+| `MembershipDeactivationGuard` (gancho de C21) | el de la Fase 2 (caja abierta) | `AllowAllDeactivationGuard` (el que rige hoy), `RejectingDeactivationGuard` |
 | `AuditLogWriter` | `FirestoreAuditLogWriter` | `InMemoryAuditLogWriter` |
 | `UnitOfWork` | `FirestoreUnitOfWork` (`runTransaction`) | `InMemoryUnitOfWork` (snapshot y rollback) |
 | `Clock` | `systemClock` | `FakeClock` |
@@ -79,6 +85,11 @@ transacción** (`memberships`, `tenants`, `venues`, `categories`, `groups` y
 `auditLog`): o se confirma todo (cambio + bitácora) o nada. Firestore exige leer
 antes de escribir y puede reintentar la función, así que el trabajo no debe tener
 efectos fuera del contexto recibido.
+
+`MembershipRepository` suma `listByTenant` (todas las membresías del tenant, y el
+caso de uso filtra en memoria). `IdentityProvider` y `MembershipDeactivationGuard`
+**no** forman parte de `UnitOfWork`: Auth no entra en la transacción de Firestore,
+por eso `InviteMember` crea la cuenta entre dos transacciones (ADR 0010).
 
 `StructureRepository<T>` expone `newId()`, `get`, `save` y `listByTenant`. No hay
 búsquedas por nombre ni por padre: los casos de uso filtran `listByTenant` en
@@ -124,8 +135,10 @@ No hay claims de tenant ni de rol. En cada petición:
 4. El caso de uso aplica las reglas de rol: las escrituras de estructura exigen
    `owner` (`requireOwner`); la ruta de estructura aplica la tabla de visibilidad.
 
-Desactivar una membresía corta el acceso en la **siguiente** llamada, sin
-revocar tokens.
+Desactivar una membresía (`PATCH …/status`) corta el acceso en la **siguiente**
+llamada, en cualquier ruta, sin revocar tokens ni tocar la cuenta de Auth. Quién
+puede invitar, cambiar alcance y activar o desactivar, y qué ve cada rol en el
+listado de miembros, está en el ADR 0010.
 
 ### Visibilidad de `GET /tenants/:tenantId/structure`
 
@@ -166,7 +179,9 @@ sequenceDiagram
 
 Reglas del caso de uso (ADR 0004): solo un `owner` activo del mismo tenant; el
 objetivo debe existir en ese tenant; el rol nuevo debe diferir; el tenant
-conserva al menos un `owner` activo. El `scope` se conserva.
+conserva al menos un `owner` activo. Desde la spec 05 el rol y el `scope` cambian
+juntos (obligatorio para `coordinator` y `teacher`, vacío para `owner` y
+`accountant`; ADR 0010).
 
 Las escrituras de estructura (spec 02) siguen el mismo flujo, con tres
 diferencias: el caso de uso lee sedes, categorías o grupos (no membresías

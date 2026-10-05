@@ -4,12 +4,8 @@ import type {AuditEntry} from "../../../audit/domain/audit-entry.js";
 import type {Tenant} from "../../../tenant/domain/tenant.js";
 import type {Venue} from "../../../structure/domain/structure.js";
 import {FakeClock} from "./fake-clock.js";
-import {
-  InMemoryAuditLogWriter,
-} from "../../../audit/application/testing/in-memory-audit-log-writer.js";
-import {
-  InMemoryMembershipRepository,
-} from "../../../membership/application/testing/in-memory-membership-repository.js";
+import {InMemoryAuditLogWriter} from "../../../audit/application/testing/in-memory-audit-log-writer.js";
+import {InMemoryMembershipRepository} from "../../../membership/application/testing/in-memory-membership-repository.js";
 import {InMemoryUnitOfWork} from "./in-memory-unit-of-work.js";
 
 const membership = (overrides: Partial<Membership> = {}): Membership => ({
@@ -69,8 +65,7 @@ describe("InMemoryMembershipRepository", () => {
     await memberships.save(membership());
     const read = await memberships.get("u1", "tenant-a");
     read!.role = "owner";
-    expect((await memberships.get("u1", "tenant-a"))!.role)
-      .toBe("coordinator");
+    expect((await memberships.get("u1", "tenant-a"))!.role).toBe("coordinator");
   });
 
   it("counts active memberships by role within one tenant", async () => {
@@ -93,8 +88,9 @@ describe("InMemoryAuditLogWriter", () => {
     const {auditLog} = setup();
     await auditLog.append(entry());
     expect(auditLog.entries).toHaveLength(1);
-    expect(auditLog.entries[0].at.toISOString())
-      .toBe("2026-10-03T12:00:00.000Z");
+    expect(auditLog.entries[0].at.toISOString()).toBe(
+      "2026-10-03T12:00:00.000Z",
+    );
     expect(auditLog.entries[0].actorUid).toBe("owner-1");
   });
 });
@@ -115,12 +111,13 @@ describe("InMemoryUnitOfWork", () => {
   it("rolls back membership writes when the work throws", async () => {
     const {memberships, auditLog, uow} = setup();
     await memberships.save(membership());
-    await expect(uow.run(async (tx) => {
-      await tx.memberships.save(membership({role: "owner"}));
-      throw new Error("boom");
-    })).rejects.toThrow("boom");
-    expect((await memberships.get("u1", "tenant-a"))!.role)
-      .toBe("coordinator");
+    await expect(
+      uow.run(async (tx) => {
+        await tx.memberships.save(membership({role: "owner"}));
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+    expect((await memberships.get("u1", "tenant-a"))!.role).toBe("coordinator");
     expect(auditLog.entries).toHaveLength(0);
   });
 
@@ -128,12 +125,13 @@ describe("InMemoryUnitOfWork", () => {
     const {memberships, auditLog, uow} = setup();
     await memberships.save(membership());
     auditLog.failWith = new Error("audit down");
-    await expect(uow.run(async (tx) => {
-      await tx.memberships.save(membership({role: "owner"}));
-      await tx.auditLog.append(entry());
-    })).rejects.toThrow("audit down");
-    expect((await memberships.get("u1", "tenant-a"))!.role)
-      .toBe("coordinator");
+    await expect(
+      uow.run(async (tx) => {
+        await tx.memberships.save(membership({role: "owner"}));
+        await tx.auditLog.append(entry());
+      }),
+    ).rejects.toThrow("audit down");
+    expect((await memberships.get("u1", "tenant-a"))!.role).toBe("coordinator");
     expect(auditLog.entries).toHaveLength(0);
   });
 });
@@ -195,8 +193,9 @@ describe("InMemoryStructureRepository (venues)", () => {
     await uow.venues.save(venue());
     const read = await uow.venues.get("tenant-a", "venue-1");
     read!.name = "Otro";
-    expect((await uow.venues.get("tenant-a", "venue-1"))!.name)
-      .toBe("Sede Norte");
+    expect((await uow.venues.get("tenant-a", "venue-1"))!.name).toBe(
+      "Sede Norte",
+    );
   });
 });
 
@@ -206,15 +205,19 @@ describe("InMemoryUnitOfWork with structure repositories", () => {
     await uow.venues.save(venue());
     await uow.tenants.save(tenant());
     auditLog.failWith = new Error("audit down");
-    await expect(uow.run(async (tx) => {
-      await tx.venues.save(venue({name: "Cambiada"}));
-      await tx.tenants.save(tenant({name: "Cambiada"}));
-      await tx.auditLog.append(entry());
-    })).rejects.toThrow("audit down");
-    expect((await uow.venues.get("tenant-a", "venue-1"))!.name)
-      .toBe("Sede Norte");
-    expect((await uow.tenants.get("tenant-a"))!.name)
-      .toBe("Argentinos Juniors");
+    await expect(
+      uow.run(async (tx) => {
+        await tx.venues.save(venue({name: "Cambiada"}));
+        await tx.tenants.save(tenant({name: "Cambiada"}));
+        await tx.auditLog.append(entry());
+      }),
+    ).rejects.toThrow("audit down");
+    expect((await uow.venues.get("tenant-a", "venue-1"))!.name).toBe(
+      "Sede Norte",
+    );
+    expect((await uow.tenants.get("tenant-a"))!.name).toBe(
+      "Argentinos Juniors",
+    );
   });
 
   it("exposes categories and groups in the transaction", async () => {

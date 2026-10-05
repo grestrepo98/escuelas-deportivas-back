@@ -2,9 +2,11 @@ import {z} from "zod";
 
 // GET /tenants/:tenantId/structure?includeClosed=true. The tenant travels in
 // the route; query values are always strings.
-export const getStructureQuery = z.object({
-  includeClosed: z.enum(["true", "false"]).optional(),
-}).strict();
+export const getStructureQuery = z
+  .object({
+    includeClosed: z.enum(["true", "false"]).optional(),
+  })
+  .strict();
 
 const status = z.enum(["active", "closed"]);
 // ISO 8601, UTC.
@@ -32,11 +34,13 @@ const groupDto = z.object({
   venueId: z.string(),
   categoryId: z.string(),
   name: z.string(),
-  schedule: z.array(z.object({
-    weekday: z.number(),
-    start: z.string(),
-    end: z.string(),
-  })),
+  schedule: z.array(
+    z.object({
+      weekday: z.number(),
+      start: z.string(),
+      end: z.string(),
+    }),
+  ),
   status,
   ...timestamps,
 });

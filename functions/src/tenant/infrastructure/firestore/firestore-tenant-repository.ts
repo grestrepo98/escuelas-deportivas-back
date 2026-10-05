@@ -1,7 +1,5 @@
 import type {Tenant} from "../../domain/tenant.js";
-import type {
-  TenantRepository,
-} from "../../application/tenant-repository.js";
+import type {TenantRepository} from "../../application/tenant-repository.js";
 import type {Firestore, Transaction} from "firebase-admin/firestore";
 import {fromTenantDoc, toTenantDoc} from "./tenant-mapper.js";
 

@@ -47,6 +47,7 @@ module.exports = {
     "plugin:import/typescript",
     "google",
     "plugin:@typescript-eslint/recommended",
+    "prettier",
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
@@ -54,28 +55,16 @@ module.exports = {
     tsconfigRootDir: __dirname,
     sourceType: "module",
   },
-  plugins: [
-    "@typescript-eslint",
-    "import",
-  ],
+  plugins: ["@typescript-eslint", "import"],
   ignorePatterns: [
     "/lib/**/*", // Ignore built files.
     "/generated/**/*", // Ignore generated files.
     "/build.mjs",
   ],
   rules: {
-    "quotes": ["error", "double"],
     "import/no-unresolved": 0,
-    "indent": ["error", 2],
     // Express exposes its router as a factory function, not a constructor.
-    "new-cap": ["error", {"capIsNewExceptions": ["Router"]}],
-    // A module path cannot be wrapped, and layered paths are long.
-    "max-len": ["error", {
-      "code": 80,
-      "tabWidth": 2,
-      "ignoreUrls": true,
-      "ignorePattern": "^\\} from \"|^import .* from \"",
-    }],
+    "new-cap": ["error", {capIsNewExceptions: ["Router"]}],
     // TypeScript types already document signatures.
     "require-jsdoc": 0,
     "valid-jsdoc": 0,
@@ -84,21 +73,27 @@ module.exports = {
     {
       files: ["src/*/domain/**/*.ts"],
       rules: {
-        "no-restricted-imports": ["error", {
-          patterns: [
-            ...frameworkPatterns,
-            infrastructurePattern,
-            applicationPattern,
-          ],
-        }],
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              ...frameworkPatterns,
+              infrastructurePattern,
+              applicationPattern,
+            ],
+          },
+        ],
       },
     },
     {
       files: ["src/*/application/**/*.ts"],
       rules: {
-        "no-restricted-imports": ["error", {
-          patterns: [...frameworkPatterns, infrastructurePattern],
-        }],
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [...frameworkPatterns, infrastructurePattern],
+          },
+        ],
       },
     },
   ],

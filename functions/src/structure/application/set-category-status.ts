@@ -45,8 +45,11 @@ export class SetCategoryStatus {
 
         if (status === "closed") {
           const tenantGroups = await groups.listByTenant(tenantId);
-          if (tenantGroups.some((g) =>
-            g.categoryId === categoryId && g.status === "active")) {
+          if (
+            tenantGroups.some(
+              (g) => g.categoryId === categoryId && g.status === "active",
+            )
+          ) {
             throw new DomainError(
               "failed_precondition",
               "Close the active groups of the category first",
@@ -72,8 +75,7 @@ export class SetCategoryStatus {
           tenantId,
           actorUid,
           actorRole,
-          action: status === "closed" ? "category.closed" :
-            "category.reopened",
+          action: status === "closed" ? "category.closed" : "category.reopened",
           target: {type: "category", id: categoryId},
           before: {status: category.status},
           after: {status},

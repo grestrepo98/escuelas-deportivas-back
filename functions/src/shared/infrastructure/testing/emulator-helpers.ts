@@ -9,7 +9,8 @@ export type TestUser = {uid: string; idToken: string};
 export async function createUser(email: string): Promise<TestUser> {
   const host = process.env.FIREBASE_AUTH_EMULATOR_HOST;
   if (!host) throw new Error("FIREBASE_AUTH_EMULATOR_HOST is not set");
-  const url = `http://${host}/identitytoolkit.googleapis.com` +
+  const url =
+    `http://${host}/identitytoolkit.googleapis.com` +
     "/v1/accounts:signUp?key=fake";
   const response = await fetch(url, {
     method: "POST",
@@ -21,7 +22,7 @@ export async function createUser(email: string): Promise<TestUser> {
     }),
   });
   if (!response.ok) throw new Error(`signUp failed: ${response.status}`);
-  const body = await response.json() as {localId: string; idToken: string};
+  const body = (await response.json()) as {localId: string; idToken: string};
   return {uid: body.localId, idToken: body.idToken};
 }
 

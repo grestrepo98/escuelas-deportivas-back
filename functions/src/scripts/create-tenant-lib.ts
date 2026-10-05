@@ -1,12 +1,8 @@
 import {validateName} from "../structure/domain/validation.js";
 import type {Auth, UserRecord} from "firebase-admin/auth";
 import type {Firestore} from "firebase-admin/firestore";
-import {
-  FirestoreMembershipRepository,
-} from "../membership/infrastructure/firestore/firestore-membership-repository.js";
-import {
-  FirestoreTenantRepository,
-} from "../tenant/infrastructure/firestore/firestore-tenant-repository.js";
+import {FirestoreMembershipRepository} from "../membership/infrastructure/firestore/firestore-membership-repository.js";
+import {FirestoreTenantRepository} from "../tenant/infrastructure/firestore/firestore-tenant-repository.js";
 import {DEV_PROJECT_ID, type SeedTarget} from "./seed-lib.js";
 
 // Lowercase letters, digits and hyphens, 3-40 characters. No underscore: the
@@ -48,26 +44,30 @@ export function parseCreateTenantArgs(
     if (!env.FIRESTORE_EMULATOR_HOST || !env.FIREBASE_AUTH_EMULATOR_HOST) {
       throw new Error(
         "--target emulator needs FIRESTORE_EMULATOR_HOST and " +
-        "FIREBASE_AUTH_EMULATOR_HOST (run it through firebase emulators:exec)");
+          "FIREBASE_AUTH_EMULATOR_HOST (run it through firebase emulators:exec)",
+      );
     }
     projectId = env.GCLOUD_PROJECT ?? DEV_PROJECT_ID;
   } else if (target === "dev") {
     if (env.FIRESTORE_EMULATOR_HOST || env.FIREBASE_AUTH_EMULATOR_HOST) {
       throw new Error(
         "--target dev refused: emulator variables are set, so writes would " +
-        "go to the emulator, not to dev. Unset them first");
+          "go to the emulator, not to dev. Unset them first",
+      );
     }
     projectId = DEV_PROJECT_ID;
   } else {
     throw new Error(
-      `Unknown target "${target}". Allowed: emulator, dev (never prod)`);
+      `Unknown target "${target}". Allowed: emulator, dev (never prod)`,
+    );
   }
 
   const tenantId = flagValue(argv, "--tenant-id");
   if (!TENANT_ID.test(tenantId)) {
     throw new Error(
       `Invalid tenant id "${tenantId}": use 3-40 lowercase letters, digits ` +
-      "or hyphens, not starting or ending with a hyphen");
+        "or hyphens, not starting or ending with a hyphen",
+    );
   }
   const name = validateName(flagValue(argv, "--name"), "--name");
   const ownerEmail = flagValue(argv, "--owner-email").trim().toLowerCase();

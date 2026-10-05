@@ -52,6 +52,9 @@ functions/src/
 
 ## Rutas de lo que ya existe
 
+(Las rutas de usuarios, `POST`/`GET …/memberships`, `PATCH …/status` y
+`PUT …/scope`, las agregó la spec 05: ADR 0010.)
+
 | API | Ruta | Hoy (callable) |
 | --- | --- | --- |
 | `membershipApi` | `GET /me/memberships` | `listMyMemberships` |
