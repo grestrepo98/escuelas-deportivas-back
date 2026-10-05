@@ -16,6 +16,7 @@ Run from `functions/`, the only npm package (there is no root `package.json`; No
 
 - `npm run build`: typechecks and bundles with esbuild into `lib/index.js` (entry `src/index.ts`; scripts and tests are not reachable from it, see `docs/adr/0008-estructura-modular-en-functions.md`)
 - `npm run lint`: ESLint for the whole package, including the layer-boundary rules (`domain` and `application` must not import Firebase, `@google-cloud/*`, `zod` or `infrastructure`)
+- `npm run format` / `npm run format:check`: Prettier (`.prettierrc.json`) on the `.ts` and `.js` files; CI runs `format:check`. ESLint no longer checks formatting (`eslint-config-prettier`), and line endings are LF everywhere (`.gitattributes`, `.editorconfig`)
 - `npm run typecheck`: `tsc --noEmit`
 - `npm run test:unit`: Vitest on `src/**/*.test.ts` (domain, use cases, boundary lint test), no emulator
 - `npm run test:rules`: Firestore/Storage rules tests (`test/rules/`) under `firebase emulators:exec` (project `demo-escuelas-rules`)

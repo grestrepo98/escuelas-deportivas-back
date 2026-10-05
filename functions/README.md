@@ -98,6 +98,8 @@ Todo se corre desde `functions/` (no hay `package.json` en la raíz):
 ```bash
 npm run build              # typecheck + bundle esbuild
 npm run lint
+npm run format             # Prettier: formatea los .ts y .js
+npm run format:check       # lo mismo sin escribir; lo corre el CI
 npm run typecheck
 npm run test:unit          # sin emulador
 npm run test:rules         # emuladores Firestore + Storage
@@ -114,10 +116,13 @@ npm run smoke:emulator     # verifica el propio smoke test en local
 integración de las rutas llaman a la API por HTTP con el helper `callApi`
 (`src/shared/infrastructure/testing/emulator-helpers.ts`).
 
-El lint exige saltos de línea LF. En Windows con `core.autocrlf=true` el árbol de
-trabajo queda en CRLF y `npm run lint` falla en todos los archivos; el CI
-(Linux) no se ve afectado. Los despliegues desde la máquina local también pueden
-fallar por la red: ver `docs/guias/despliegue-con-red-inestable.md`.
+El formato lo gobierna Prettier (`.prettierrc.json`) y ESLint solo revisa lo que
+no es formato (`eslint-config-prettier` va al final de `extends`). Los saltos de
+línea son LF en cualquier sistema: `.gitattributes` (`eol=lf`) y `.editorconfig`
+lo fijan aunque `core.autocrlf=true`. Para que `git blame` ignore el commit de
+formato: `git config blame.ignoreRevsFile .git-blame-ignore-revs`. Los
+despliegues desde la máquina local pueden fallar por la red: ver
+`docs/guias/despliegue-con-red-inestable.md`.
 
 ## Empaquetado
 
