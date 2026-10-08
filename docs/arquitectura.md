@@ -65,9 +65,9 @@ app Express adentro. Express vive solo en `infrastructure/http`; `domain` y
 | `structureApi` | las mismas tres rutas para `groups` | `SaveGroup`, `SetGroupStatus` | `owner` | 0007 |
 | `structureApi` | `GET /tenants/:tenantId/structure` | `visibleStructure` (función pura) sobre la lectura del tenant | por rol y alcance | 0007 |
 | `playerApi` | `POST /tenants/:tenantId/players` | `EnrollPlayer` | `owner`, `accountant`, `coordinator` (sus sedes) | 0011 |
-| `playerApi` | `GET /tenants/:tenantId/players` | lectura pura (`listPlayers`: cursor, filtros, alcance) | personal y `teacher` (sus grupos) | 0011 |
-| `playerApi` | `GET /tenants/:tenantId/players/search-index` | lectura pura (`readPlayerSearchIndex`) | personal y `teacher` (recortado) | 0011 |
-| `playerApi` | `GET /tenants/:tenantId/players/:playerId` | `GetPlayer` | personal y `teacher` (recortado) | 0011 |
+| `playerApi` | `GET /tenants/:tenantId/players` | lectura pura (`listPlayers`: cursor, filtros, alcance) | personal, `teacher` (sus grupos) y `guardian` (solo vinculados) | 0011 |
+| `playerApi` | `GET /tenants/:tenantId/players/search-index` | lectura pura (`readPlayerSearchIndex`) | personal, `teacher` y `guardian`, siempre recortado por alcance | 0011 |
+| `playerApi` | `GET /tenants/:tenantId/players/:playerId` | `GetPlayer` | personal, `teacher` (recortado) y `guardian` (solo vinculado) | 0011 |
 | `playerApi` | `PUT /tenants/:tenantId/players/:playerId` | `UpdatePlayer` | personal | 0011 |
 | `playerApi` | `PUT …/players/:playerId/placement` | `ChangePlayerPlacement` | personal | 0011 |
 | `playerApi` | `PATCH …/players/:playerId/status` | `ChangePlayerStatus` | personal | 0011 |
@@ -184,8 +184,9 @@ Un `coordinator` o `teacher` con `scope` vacío ve todo vacío. Detalle en el AD
 | --- | --- |
 | `owner`, `accountant` | Todo |
 | `coordinator` | Los jugadores de sus sedes |
-| `teacher` | Los de sus grupos, sin `document`, `guardians` ni `dataConsent` |
-| `guardian`, `adultPlayer` | `403` |
+| `teacher` | Los de sus grupos, sin `document`, `guardians`, contactos de emergencia ni `dataConsent` |
+| `guardian` | Solo los jugadores de `scope.playerIds`, sin ids/contactos de acudientes, contacto de emergencia ni `dataConsent` |
+| `adultPlayer` | `403` hasta que exista un flujo de autoservicio aprobado |
 
 Detalle y reglas de escritura en el ADR 0011.
 

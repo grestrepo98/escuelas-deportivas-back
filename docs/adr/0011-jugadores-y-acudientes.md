@@ -1,6 +1,6 @@
-# ADR 0011 — Jugadores y acudientes: módulo `player`, historial, cursor y recorte del profesor
+# ADR 0011 — Jugadores y acudientes: módulo `player`, historial, cursor y acceso por rol
 
-- **Estado:** Aceptada. Implementada en la spec 06; falta el deploy a `dev` con `smoke:dev` (que también prueba los índices reales) y el CI en un PR real (ver "Verificación")
+- **Estado:** Aceptada. El acceso de acudientes se amplió después de la spec 06 y está pendiente de implementación backend; también falta el deploy a `dev` con `smoke:dev` y el CI en un PR real (ver "Verificación")
 - **Fecha:** 2026-10-04
 - **Spec:** `specs/06-jugadores-y-acudientes.md` · **Plan:** D-10 · **Producto:** §7.3, §7.4, C10, C12, C17
 - **Se apoya en:** ADR 0007 (estructura), ADR 0009 (una API por módulo) y ADR 0010 (alcance por rol)
@@ -19,6 +19,8 @@ movimientos es una subcolección y la lista pagina por cursor.
 | --- | --- |
 | Módulo | Un solo módulo `player` con jugadores y acudientes: la inscripción cruza los dos en una transacción. `auxiliar` de la spec es el rol `accountant` |
 | Acudientes | Colección `guardians`, con el vínculo en el jugador (`guardians[]` y `guardianIds[]` para `array-contains`). Los hermanos comparten acudiente sin duplicarlo, que es lo que necesita la spec 07 (C15, C17) |
+| Lectura del acudiente | Solo lectura de los jugadores indicados por `scope.playerIds`, derivados de vínculos de acudiente verificados; nunca consulta ni revela jugadores no vinculados. La proyección no incluye ids/contactos de acudientes, contacto de emergencia ni consentimiento. Los documentos quedan sujetos al filtro del módulo `documents` |
+| Jugador adulto | `adultPlayer` conserva `403` en esta fase; el acceso propio requiere un flujo y una proyección especificados aparte |
 | Copia de `fullName` | El vínculo guarda el nombre del acudiente para que el índice liviano no lea un acudiente por jugador. `UpdateGuardian` lo actualiza en los jugadores vinculados, en la misma transacción. Costo aceptado: editar un nombre reescribe esos jugadores |
 | Ubicación | El grupo es obligatorio; `venueId` y `categoryId` se copian del grupo. El `venueId` del grupo es inmutable (spec 02), así que la copia no se desincroniza |
 | Estados | Cuatro, manuales: `preinscrito`, `activo`, `pausado` y `retirado`. "En mora" se calcula en la Fase 2 y no se guarda. `pausado` y `retirado` exigen motivo; `retirado → preinscrito \| activo` reingresa el mismo perfil (C12) |
@@ -49,13 +51,21 @@ Regla pura en `player/domain/player-visibility.ts`:
 | --- | --- | --- |
 | `owner`, `accountant` | todo | sí |
 | `coordinator` | `venueId ∈ scope.venueIds` | solo en sus sedes; mover exige que el origen y el destino sean de sus sedes |
-| `teacher` | `groupId ∈ scope.groupIds`, **sin** `document`, `documentKey`, `guardians`, `guardianIds` ni `dataConsent` | no |
-| `guardian`, `adultPlayer` | `403` | `403` |
+| `teacher` | `groupId ∈ scope.groupIds`, **sin** `document`, `documentKey`, `guardians`, `guardianIds`, contactos de emergencia ni `dataConsent` | no |
+| `guardian` | solo `playerIds ∈ scope.playerIds`, en proyección de solo lectura | no |
+| `adultPlayer` | `403` | `403` |
 
 El recorte del profesor es de la respuesta, no de la consulta: la ficha se lee entera y
 `playerViewFor` quita los campos. Lo mismo hace el índice liviano (sin `documentNumber`
 ni `guardianNames`). Los datos de contacto del acudiente están en `guardians`, y solo
 `GET …/guardians` y `PUT …/guardians/:id` los sirven, a quien puede escribir.
+
+El acudiente solo obtiene fichas cuyos ids están en su alcance `playerIds`, derivado
+de vínculos de acudiente verificados; la visibilidad se comprueba también en lecturas
+por id y en cada resultado del índice.
+La respuesta omite ids y datos de contacto de acudientes, contactos de emergencia y
+`dataConsent`. No puede listar acudientes, consultar historial ni modificar jugadores.
+`adultPlayer` continúa en `403` hasta que tenga un flujo de autoservicio aprobado.
 
 Un coordinador solo encuentra a un acudiente vinculado a un jugador de sus sedes:
 `FindGuardian` responde `{guardian: null}` en vez de `403`, para no revelar que el
@@ -101,9 +111,9 @@ rutas existentes.
 | Método y ruta | Quién | Respuesta |
 | --- | --- | --- |
 | `POST /tenants/:tenantId/players` | personal | `201 {playerId, status: "preinscrito", createdGuardianIds}` |
-| `GET /tenants/:tenantId/players` | personal, profesor | `200 {players, nextCursor}` |
-| `GET /tenants/:tenantId/players/search-index` | personal, profesor | `200 {entries}` |
-| `GET /tenants/:tenantId/players/:playerId` | personal, profesor | `200` ficha (recortada para el profesor) |
+| `GET /tenants/:tenantId/players` | personal, profesor, acudiente (solo vinculados) | `200 {players, nextCursor}` |
+| `GET /tenants/:tenantId/players/search-index` | personal, profesor, acudiente (solo vinculados y recortado) | `200 {entries}` |
+| `GET /tenants/:tenantId/players/:playerId` | personal, profesor, acudiente (solo vinculado) | `200` ficha (recortada por rol) |
 | `PUT /tenants/:tenantId/players/:playerId` | personal | `200 {playerId}` |
 | `PUT /tenants/:tenantId/players/:playerId/placement` | personal | `200 {playerId, groupId, venueId, categoryId}` |
 | `PATCH /tenants/:tenantId/players/:playerId/status` | personal | `200 {playerId, status}` |
@@ -141,6 +151,7 @@ asigna (id nuevo y hora del servidor), igual que la bitácora.
 
 ## Verificación
 
-- `test:unit` (709), `test:integration` (707), `test:rules` (339), `lint`, `typecheck`, `format:check`, `build` y `smoke:emulator` pasan en local.
+- `test:unit` (709), `test:integration` (707), `test:rules` (339), `lint`, `typecheck`, `format:check`, `build` y `smoke:emulator` pasan en local para el alcance original de la spec 06.
+- Pendiente de implementar y probar: lecturas recortadas de acudiente, con autorización por `scope.playerIds`; `adultPlayer` permanece denegado.
 - El seed crea 9 jugadores y 10 acudientes ficticios por organización `tenant-a`, de forma idempotente; el smoke test inscribe uno propio y lo borra al terminar.
 - Pendiente: desplegar funciones e índices a `escuelas-deportivas-dev`, correr `seed:dev` y `smoke:dev`, y el CI en un PR real hacia `dev`.
