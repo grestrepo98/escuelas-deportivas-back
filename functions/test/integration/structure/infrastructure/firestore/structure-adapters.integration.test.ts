@@ -25,6 +25,7 @@ const tenant = (overrides: Partial<Tenant> = {}): Tenant => ({
   status: "active",
   idrdRegistration: "IDRD-1",
   contact: {email: "info@aj.co", phone: "300"},
+  policyWarningDays: 30,
   createdAt: T0,
   updatedAt: T1,
   ...overrides,
@@ -117,6 +118,7 @@ describe("FirestoreTenantRepository", () => {
       name: "Argentinos Juniors",
       status: "active",
       contact: {},
+      policyWarningDays: 30, // read as 30 when the field is absent (spec 07)
       createdAt: T0,
       updatedAt: T0,
     });

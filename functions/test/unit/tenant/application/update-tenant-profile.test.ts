@@ -32,6 +32,7 @@ const tenant = (overrides: Partial<Tenant> = {}): Tenant => ({
   name: "Argentinos Juniors",
   status: "active",
   contact: {email: "old@aj.co"},
+  policyWarningDays: 30,
   createdAt: T0,
   updatedAt: T0,
   ...overrides,
@@ -141,4 +142,36 @@ describe("UpdateTenantProfile", () => {
     );
     expect(code).toBe("not_found");
   });
+
+  it("keeps policyWarningDays when the input omits it", async () => {
+    await uow.tenants.save(tenant({policyWarningDays: 45}));
+    await useCase.execute(input());
+    expect((await uow.tenants.get("tenant-a"))!.policyWarningDays).toBe(45);
+  });
+
+  it("updates policyWarningDays and audits the change", async () => {
+    await useCase.execute(input({policyWarningDays: 15}));
+    expect((await uow.tenants.get("tenant-a"))!.policyWarningDays).toBe(15);
+    expect(auditLog.entries[0]).toMatchObject({
+      before: {policyWarningDays: 30},
+      after: {policyWarningDays: 15},
+    });
+  });
+
+  it.each([1, 30, 365])("accepts policyWarningDays %s", async (days) => {
+    await useCase.execute(input({policyWarningDays: days}));
+    expect((await uow.tenants.get("tenant-a"))!.policyWarningDays).toBe(days);
+  });
+
+  it.each([0, -5, 366, 1.5, Number.NaN])(
+    "rejects policyWarningDays %s",
+    async (days) => {
+      const code = await rejection(
+        useCase.execute(input({policyWarningDays: days})),
+      );
+      expect(code).toBe("invalid_argument");
+      expect((await uow.tenants.get("tenant-a"))!.policyWarningDays).toBe(30);
+      expect(auditLog.entries).toHaveLength(0);
+    },
+  );
 });

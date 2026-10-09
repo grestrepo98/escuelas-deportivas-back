@@ -21,6 +21,8 @@ export const updateTenantProfileInput = z
         phone: z.string().optional(),
       })
       .strict(),
+    // Range and integer rules live in the domain; omitting it keeps the value.
+    policyWarningDays: z.number().optional(),
   })
   .strict();
 

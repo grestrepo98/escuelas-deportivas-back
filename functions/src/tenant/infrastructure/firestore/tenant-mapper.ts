@@ -1,4 +1,4 @@
-import type {Tenant} from "../../domain/tenant.js";
+import {DEFAULT_POLICY_WARNING_DAYS, type Tenant} from "../../domain/tenant.js";
 import {Timestamp, type DocumentData} from "firebase-admin/firestore";
 
 // The id is the document id, so it is not stored in the data.
@@ -13,12 +13,14 @@ export function toTenantDoc(tenant: Tenant): DocumentData {
       ...(tenant.contact.email !== undefined && {email: tenant.contact.email}),
       ...(tenant.contact.phone !== undefined && {phone: tenant.contact.phone}),
     },
+    policyWarningDays: tenant.policyWarningDays,
     createdAt: Timestamp.fromDate(tenant.createdAt),
     updatedAt: Timestamp.fromDate(tenant.updatedAt),
   };
 }
 
-// Tenants created before spec 02 have no `contact` or `updatedAt`.
+// Tenants created before spec 02 have no `contact` or `updatedAt`, and those
+// before spec 07 have no `policyWarningDays` (read as 30).
 export function fromTenantDoc(id: string, data: DocumentData): Tenant {
   if (data.status !== "active" && data.status !== "suspended") {
     throw new Error(`Corrupt tenant: unknown status "${data.status}"`);
@@ -35,6 +37,7 @@ export function fromTenantDoc(id: string, data: DocumentData): Tenant {
       ...(data.contact?.email !== undefined && {email: data.contact.email}),
       ...(data.contact?.phone !== undefined && {phone: data.contact.phone}),
     },
+    policyWarningDays: data.policyWarningDays ?? DEFAULT_POLICY_WARNING_DAYS,
     createdAt,
     updatedAt: (data.updatedAt as Timestamp | undefined)?.toDate() ?? createdAt,
   };
