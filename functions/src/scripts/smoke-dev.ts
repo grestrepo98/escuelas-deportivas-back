@@ -1,7 +1,11 @@
 import {initializeApp} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
+import {getStorage} from "firebase-admin/storage";
+import {seedFileBytes} from "./seed-documents.js";
 import {
+  CATEGORY_SUB10,
+  CATEGORY_SUB12,
   GROUP_NORTE_SUB10,
   GROUP_NORTE_SUB12,
   GROUP_SUR_SUB10,
@@ -14,8 +18,8 @@ import {
   type SeedUser,
 } from "./seed-lib.js";
 
-// End-to-end smoke test of the deployed module APIs (specs 01, 02, 04, 05 and
-// 06).
+// End-to-end smoke test of the deployed module APIs (specs 01, 02, 04, 05, 06
+// and 07).
 // It signs in as seeded users and calls the real functions over HTTPS.
 //
 //   SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev
@@ -47,7 +51,7 @@ async function main(): Promise<void> {
   const authBase = isEmulator
     ? `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com`
     : "https://identitytoolkit.googleapis.com";
-  // `api` is the function name (membershipApi, tenantApi, structureApi, playerApi).
+  // `api` is the function name (membershipApi, tenantApi, structureApi, playerApi, documentApi).
   const apiUrl = (api: string, path: string) =>
     isEmulator
       ? `http://127.0.0.1:5001/${args.projectId}/us-central1/${api}${path}`
@@ -1093,6 +1097,310 @@ async function main(): Promise<void> {
       await guardians.where("documentKey", "==", `CC:${smokeCc}`).get()
     ).docs) {
       await doc.ref.delete();
+    }
+  }
+
+  // Spec 07: documents and policies, with files through signed URLs. It
+  // uploads to a seeded player that has no documents and removes everything
+  // it created, so a rerun starts clean. In `dev` the URLs are signed for
+  // real: if signing fails, the service account of the functions lacks the
+  // permission (docs/guias/documentos-y-urls-firmadas.md).
+  const documentPlayer = "seed-player-3";
+  const documentCall = (
+    method: "GET" | "POST",
+    path: string,
+    token: string,
+    data?: unknown,
+  ) => call("documentApi", method, `/tenants/tenant-a${path}`, data, token);
+  const playerDocs = (playerId: string) => `/players/${playerId}/documents`;
+  const bucketName =
+    process.env.STORAGE_BUCKET ??
+    (isEmulator ? `${args.projectId}.appspot.com` : undefined);
+  const pdfBytes = Buffer.from(`%PDF-1.4 smoke ${smokeNumber}`);
+  const dayFromNow = (days: number) =>
+    new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+  // Steps 1 and 2 of D-08: ask for the URL and upload straight to Storage.
+  const uploadFile = async (
+    token: string,
+    type: string,
+    bytes: Buffer,
+  ): Promise<string> => {
+    const ticket = await documentCall(
+      "POST",
+      `${playerDocs(documentPlayer)}/uploads`,
+      token,
+      {type, contentType: "application/pdf", size: bytes.length},
+    );
+    if (ticket.status !== 201) {
+      throw new Error(
+        `upload ticket answered ${ticket.status}: ` +
+          `${JSON.stringify(ticket.body)}. If this is a 500 in dev, the ` +
+          "functions service account may lack permission to sign URLs",
+      );
+    }
+    const put = await fetch(ticket.body.uploadUrl, {
+      method: ticket.body.uploadMethod,
+      headers: ticket.body.uploadHeaders,
+      body: new Uint8Array(bytes),
+    });
+    if (!put.ok) throw new Error(`upload to Storage answered ${put.status}`);
+    return ticket.body.uploadId as string;
+  };
+  const downloadBytes = async (
+    token: string,
+    playerId: string,
+    documentId: string,
+  ): Promise<Buffer> => {
+    const link = await documentCall(
+      "GET",
+      `${playerDocs(playerId)}/${documentId}/download-url`,
+      token,
+    );
+    expectEqual(link.status, 200, "download-url status");
+    const response = await fetch(link.body.url);
+    if (!response.ok) throw new Error(`download answered ${response.status}`);
+    return Buffer.from(await response.arrayBuffer());
+  };
+
+  try {
+    await check(
+      "the owner sees the seeded documents and policy status of a player",
+      async () => {
+        const {status, body} = await documentCall(
+          "GET",
+          playerDocs(SEED_PLAYERS[0].id),
+          tokenA,
+        );
+        expectEqual(status, 200, "status");
+        expectEqual(
+          body.documents.map((d: {type: string}) => d.type).sort(),
+          ["identity", "photo", "policy"],
+          "types",
+        );
+        expectEqual(body.policyStatus, "valid", "policyStatus");
+      },
+    );
+
+    await check(
+      "a category lists every policy status, including players without one",
+      async () => {
+        const statuses = async (categoryId: string) => {
+          const {status, body} = await documentCall(
+            "GET",
+            `/categories/${categoryId}/policies`,
+            tokenA,
+          );
+          expectEqual(status, 200, "status");
+          return Object.fromEntries(
+            body.items.map((i: {playerId: string; policyStatus: string}) => [
+              i.playerId,
+              i.policyStatus,
+            ]),
+          );
+        };
+        const sub10 = await statuses(CATEGORY_SUB10);
+        expectEqual(
+          [
+            sub10["seed-player-1"],
+            sub10["seed-player-2"],
+            sub10["seed-player-3"],
+          ],
+          ["valid", "expiring", "missing"],
+          "sub10 statuses",
+        );
+        expectEqual(
+          (await statuses(CATEGORY_SUB12))["seed-player-4"],
+          "expired",
+          "sub12",
+        );
+      },
+    );
+
+    await check("a seeded file downloads through a signed URL", async () => {
+      const bytes = await downloadBytes(
+        tokenA,
+        SEED_PLAYERS[0].id,
+        "seed-doc-p1-identity",
+      );
+      expectEqual(
+        bytes.equals(seedFileBytes("application/pdf")),
+        true,
+        "bytes",
+      );
+    });
+
+    let firstUpload = "";
+    await check(
+      "uploads a file with the ticket, confirms it and downloads it back",
+      async () => {
+        firstUpload = await uploadFile(tokenA, "identity", pdfBytes);
+        const confirmed = await documentCall(
+          "POST",
+          playerDocs(documentPlayer),
+          tokenA,
+          {type: "identity", uploadId: firstUpload},
+        );
+        expectEqual(confirmed.status, 201, "confirm status");
+        expectEqual(confirmed.body.document.id, firstUpload, "document id");
+        const bytes = await downloadBytes(tokenA, documentPlayer, firstUpload);
+        expectEqual(bytes.equals(pdfBytes), true, "bytes");
+      },
+    );
+
+    await check("confirming the same upload twice is idempotent", async () => {
+      const again = await documentCall(
+        "POST",
+        playerDocs(documentPlayer),
+        tokenA,
+        {type: "identity", uploadId: firstUpload},
+      );
+      expectEqual(again.body.document.id, firstUpload, "same document");
+    });
+
+    await check("a second upload supersedes the first", async () => {
+      const second = await uploadFile(tokenA, "identity", pdfBytes);
+      const confirmed = await documentCall(
+        "POST",
+        playerDocs(documentPlayer),
+        tokenA,
+        {type: "identity", uploadId: second},
+      );
+      expectEqual(confirmed.status, 201, "confirm status");
+      const current = await documentCall(
+        "GET",
+        playerDocs(documentPlayer),
+        tokenA,
+      );
+      expectEqual(
+        current.body.documents.map((d: {id: string}) => d.id),
+        [second],
+        "current",
+      );
+      const history = await documentCall(
+        "GET",
+        `${playerDocs(documentPlayer)}?history=true`,
+        tokenA,
+      );
+      const old = history.body.documents.find(
+        (d: {id: string}) => d.id === firstUpload,
+      );
+      expectEqual(
+        [old?.status, old?.supersededBy],
+        ["superseded", second],
+        "old version",
+      );
+    });
+
+    await check(
+      "a policy is recorded without a file and reports its status",
+      async () => {
+        const response = await documentCall(
+          "POST",
+          playerDocs(documentPlayer),
+          tokenA,
+          {
+            type: "policy",
+            policy: {
+              number: `SMOKE-${smokeNumber}`,
+              insurer: "Seguros Smoke",
+              validFrom: dayFromNow(-10),
+              validUntil: dayFromNow(90),
+            },
+          },
+        );
+        expectEqual(response.status, 201, "status");
+        expectEqual(response.body.policyStatus, "valid", "policyStatus");
+        expectEqual(response.body.document.file, undefined, "file");
+      },
+    );
+
+    await check("a teacher reads only the photo and the policy", async () => {
+      const token = await signIn(teacherA);
+      const list = await documentCall(
+        "GET",
+        playerDocs(SEED_PLAYERS[0].id),
+        token,
+      );
+      expectEqual(
+        list.body.documents.map((d: {type: string}) => d.type).sort(),
+        ["photo", "policy"],
+        "types",
+      );
+      const identity = await documentCall(
+        "GET",
+        `${playerDocs(SEED_PLAYERS[0].id)}/seed-doc-p1-identity/download-url`,
+        token,
+      );
+      const outside = await documentCall(
+        "GET",
+        playerDocs("seed-player-4"),
+        token,
+      );
+      const write = await documentCall(
+        "POST",
+        `${playerDocs(SEED_PLAYERS[0].id)}/uploads`,
+        token,
+        {type: "photo", contentType: "image/png", size: 10},
+      );
+      expectEqual(
+        [identity.status, outside.status, write.status],
+        [403, 403, 403],
+        "statuses",
+      );
+    });
+
+    await check("a coordinator is limited to their venue", async () => {
+      const token = await signIn(coordinatorA);
+      const own = await documentCall(
+        "GET",
+        playerDocs(SEED_PLAYERS[0].id),
+        token,
+      );
+      const other = await documentCall(
+        "GET",
+        playerDocs("seed-player-7"),
+        token,
+      );
+      expectEqual([own.status, other.status], [200, 403], "statuses");
+    });
+
+    await check(
+      "a tenant-b owner cannot reach tenant-a documents",
+      async () => {
+        const list = await documentCall(
+          "GET",
+          playerDocs(SEED_PLAYERS[0].id),
+          tokenB,
+        );
+        const category = await documentCall(
+          "GET",
+          `/categories/${CATEGORY_SUB10}/policies`,
+          tokenB,
+        );
+        expectEqual([list.status, category.status], [403, 403], "statuses");
+      },
+    );
+  } finally {
+    const documents = await db
+      .collection("tenants/tenant-a/documents")
+      .where("playerId", "==", documentPlayer)
+      .get();
+    for (const doc of documents.docs) await doc.ref.delete();
+    if (bucketName) {
+      await getStorage(app)
+        .bucket(bucketName)
+        .deleteFiles({
+          prefix: `tenants/tenant-a/players/${documentPlayer}/documents/`,
+          force: true,
+        });
+    } else {
+      console.log(
+        "      (set STORAGE_BUCKET to also delete the files the smoke test " +
+          "uploaded; they are tiny and fictitious)",
+      );
     }
   }
 

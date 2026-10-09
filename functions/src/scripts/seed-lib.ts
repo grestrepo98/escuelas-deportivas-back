@@ -1,4 +1,9 @@
 import {ROLES, type Role} from "../membership/domain/role.js";
+import type {PlayerDocument} from "../document/domain/document.js";
+import {toDocumentDoc} from "../document/infrastructure/firestore/document-mapper.js";
+import {FirestoreDocumentRepository} from "../document/infrastructure/firestore/firestore-document-repository.js";
+import type {Bucket} from "../document/infrastructure/storage/gcs-file-storage.js";
+import {buildSeedDocuments, seedFileBytes} from "./seed-documents.js";
 import type {ContactPreference, Guardian} from "../player/domain/guardian.js";
 import {documentKey, nameKey} from "../player/domain/normalize.js";
 import type {
@@ -43,8 +48,8 @@ export const SEED_TENANTS = [
 export const VENUE_NORTE = "seed-venue-norte";
 export const VENUE_SUR = "seed-venue-sur";
 const VENUE_B = "seed-venue-b";
-const CATEGORY_SUB10 = "seed-category-sub10";
-const CATEGORY_SUB12 = "seed-category-sub12";
+export const CATEGORY_SUB10 = "seed-category-sub10";
+export const CATEGORY_SUB12 = "seed-category-sub12";
 export const GROUP_NORTE_SUB10 = "seed-group-norte-sub10";
 export const GROUP_NORTE_SUB12 = "seed-group-norte-sub12";
 export const GROUP_SUR_SUB10 = "seed-group-sur-sub10";
@@ -465,11 +470,14 @@ export type SeedSummary = {
   structure: Counts;
   guardians: Counts;
   players: Counts;
+  documents: Counts;
+  files: {created: number; unchanged: number};
 };
 
 type SeedDeps = {
   db: Firestore;
   auth: Auth;
+  bucket: Bucket;
   password: string;
   now?: Date;
 };
@@ -516,6 +524,47 @@ async function syncDocuments<T extends Stored>(
     if (existing) counts.updated++;
     else counts.created++;
   }
+}
+
+type StoredDocument = PlayerDocument & {updatedAt: Date};
+
+// Documents carry no `updatedAt`; `syncDocuments` ignores it anyway.
+function documentRepo(repo: FirestoreDocumentRepository): Repo<StoredDocument> {
+  return {
+    get: async (tenantId, id) => {
+      const found = await repo.get(tenantId, id);
+      return found && {...found, updatedAt: found.createdAt};
+    },
+    save: (document) => repo.save(document),
+  };
+}
+
+// Writes the fictitious file of each seeded document that has one, unless an
+// identical object is already there.
+async function syncFiles(
+  bucket: Bucket,
+  seedDocuments: PlayerDocument[],
+): Promise<{created: number; unchanged: number}> {
+  const counts = {created: 0, unchanged: 0};
+  for (const document of seedDocuments) {
+    if (!document.file) continue;
+    const {path, contentType} = document.file;
+    const bytes = seedFileBytes(contentType);
+    const file = bucket.file(path);
+    if ((await file.exists())[0]) {
+      const [metadata] = await file.getMetadata();
+      if (
+        Number(metadata.size) === bytes.length &&
+        metadata.contentType === contentType
+      ) {
+        counts.unchanged++;
+        continue;
+      }
+    }
+    await file.save(bytes, {contentType});
+    counts.created++;
+  }
+  return counts;
 }
 
 // Idempotent: fixed uids and ids, and untouched documents are not rewritten,
@@ -598,6 +647,16 @@ export async function runSeed(deps: SeedDeps): Promise<SeedSummary> {
     players,
   );
 
+  const documents = {created: 0, updated: 0, unchanged: 0};
+  const seedDocuments = buildSeedDocuments(now, ownerUid);
+  await syncDocuments(
+    documentRepo(new FirestoreDocumentRepository(db)),
+    toDocumentDoc,
+    seedDocuments.map((d) => ({...d, updatedAt: d.createdAt})),
+    documents,
+  );
+  const files = await syncFiles(deps.bucket, seedDocuments);
+
   const memberships = {created: 0, updated: 0, unchanged: 0};
   for (const user of SEED_USERS) {
     const existing = await repo.get(user.uid, user.tenantId);
@@ -631,5 +690,7 @@ export async function runSeed(deps: SeedDeps): Promise<SeedSummary> {
     structure,
     guardians,
     players,
+    documents,
+    files,
   };
 }
