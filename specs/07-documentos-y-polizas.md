@@ -90,7 +90,7 @@ Convenciones:
 - `venueId` y `groupId` se copian al crear el documento; si el jugador cambia de grupo (spec 06), el alcance de lectura de sus documentos se actualiza en la misma transacción del cambio de grupo del módulo `player`, que escribe las dos copias a través del puerto de lectura. Si esto no es viable sin acoplar los módulos, el alcance se resuelve leyendo el jugador en cada petición y los campos se descartan; la decisión se toma en el paso 3 del plan y queda registrada en el ADR 0013.
 - Un solo documento `current` por jugador y tipo. Subir uno nuevo marca el anterior como `superseded` en la misma transacción.
 - La póliza vence al final del día `validUntil` en America/Bogota. `expiring` si faltan `policyWarningDays` días o menos; `expired` si la fecha ya pasó; `missing` si el jugador no tiene póliza `current`.
-- Rutas de Storage: subidas pendientes en `tenants/{t}/uploads/{uploadId}`; archivos confirmados en `tenants/{t}/players/{p}/documents/{docId}`.
+- Rutas de Storage: subidas pendientes en `uploads/{t}/{uploadId}` (un solo prefijo para la regla de ciclo de vida; decidido por el usuario el 2026-10-08); archivos confirmados en `tenants/{t}/players/{p}/documents/{docId}`.
 - Los metadatos del archivo (tipo y tamaño) se leen del objeto en Storage al confirmar, nunca de lo que diga el cliente.
 
 ### Rutas y contratos
