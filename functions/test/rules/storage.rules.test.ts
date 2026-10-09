@@ -10,6 +10,11 @@ import {CALLERS, contextFor, initRulesEnv} from "./helpers";
 const PATHS = [
   "tenants/tenant-a/players/p1/document.pdf",
   "tenants/tenant-b/players/p2/document.pdf",
+  // Spec 07: pending uploads and confirmed documents.
+  "uploads/tenant-a/upload-1",
+  "uploads/tenant-b/upload-2",
+  "tenants/tenant-a/players/p1/documents/doc-1",
+  "tenants/tenant-b/players/p2/documents/doc-2",
   "any/other/path.txt",
   "root.txt",
 ];
