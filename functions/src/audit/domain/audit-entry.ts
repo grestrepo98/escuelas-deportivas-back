@@ -25,7 +25,10 @@ export type AuditAction =
   | "player.guardians_changed"
   | "player.consent_recorded"
   | "guardian.created"
-  | "guardian.updated"; // extended by future specs
+  | "guardian.updated"
+  | "document.uploaded"
+  | "document.recorded"
+  | "document.superseded"; // extended by future specs
 
 export type AuditTargetType =
   | "membership"
@@ -34,7 +37,8 @@ export type AuditTargetType =
   | "category"
   | "group"
   | "player"
-  | "guardian";
+  | "guardian"
+  | "document";
 
 // The writer assigns the timestamp (server time, UTC), so it is not part
 // of the entry the domain builds.

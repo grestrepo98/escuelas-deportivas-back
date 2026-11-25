@@ -1,6 +1,7 @@
 import {ROLES} from "../../../src/membership/domain/role.js";
 import {validateSchedule} from "../../../src/structure/domain/validation.js";
 import {getAuth} from "firebase-admin/auth";
+import {getStorage} from "firebase-admin/storage";
 import {beforeEach, describe, expect, it} from "vitest";
 import {
   parseSeedArgs,
@@ -13,6 +14,7 @@ import {
   SEED_USERS,
   SEED_VENUES,
 } from "../../../src/scripts/seed-lib.js";
+import {buildSeedDocuments} from "../../../src/scripts/seed-documents.js";
 import {documentKey, nameKey} from "../../../src/player/domain/normalize.js";
 import {listPlayers} from "../../../src/player/infrastructure/firestore/player-list-query.js";
 import {FirestorePlayerRepository} from "../../../src/player/infrastructure/firestore/firestore-player-repository.js";
@@ -25,7 +27,12 @@ import {
 
 const db = testDb();
 const auth = getAuth(testApp());
+const bucket = getStorage(testApp()).bucket(
+  "demo-escuelas-integration.appspot.com",
+);
 const PASSWORD = "test-password-1";
+const SEED_DOCUMENTS = buildSeedDocuments(new Date(), "owner");
+const SEED_FILES = SEED_DOCUMENTS.filter((d) => d.file).length;
 
 const snapshot = async () => {
   const collections = [
@@ -37,6 +44,7 @@ const snapshot = async () => {
       `tenants/${t.id}/groups`,
       `tenants/${t.id}/guardians`,
       `tenants/${t.id}/players`,
+      `tenants/${t.id}/documents`,
     ]),
   ];
   const out: Record<string, unknown> = {};
@@ -51,6 +59,7 @@ const snapshot = async () => {
 beforeEach(async () => {
   await clearFirestore();
   await clearAuth();
+  await bucket.deleteFiles({prefix: "tenants/", force: true});
 });
 
 describe("seed data definition", () => {
@@ -120,7 +129,7 @@ describe("seed data definition", () => {
 
 describe("runSeed", () => {
   it("creates tenants, auth users and active memberships", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
 
     const tenants = await db.collection("tenants").get();
     expect(tenants.docs.map((d) => d.id).sort()).toEqual([
@@ -145,7 +154,7 @@ describe("runSeed", () => {
   });
 
   it("writes the structure with the expected fields", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
 
     for (const venue of SEED_VENUES) {
       const data = (
@@ -189,7 +198,7 @@ describe("runSeed", () => {
   });
 
   it("lets a seeded user sign in with the given password", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const host = process.env.FIREBASE_AUTH_EMULATOR_HOST;
     const response = await fetch(
       `http://${host}/identitytoolkit.googleapis.com/v1/` +
@@ -208,11 +217,11 @@ describe("runSeed", () => {
   });
 
   it("is idempotent: a second run changes nothing and adds nothing", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const before = await snapshot();
     const usersBefore = (await auth.listUsers()).users.length;
 
-    const summary = await runSeed({db, auth, password: PASSWORD});
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
 
     expect(await snapshot()).toEqual(before);
     expect((await auth.listUsers()).users.length).toBe(usersBefore);
@@ -238,10 +247,16 @@ describe("runSeed", () => {
       updated: 0,
       unchanged: SEED_PLAYERS.length,
     });
+    expect(summary.documents).toEqual({
+      created: 0,
+      updated: 0,
+      unchanged: SEED_DOCUMENTS.length,
+    });
+    expect(summary.files).toEqual({created: 0, unchanged: SEED_FILES});
   });
 
   it("restores a closed or renamed structure document to the baseline", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const venue = SEED_VENUES[0];
     const group = SEED_GROUPS[0];
     await db
@@ -251,7 +266,7 @@ describe("runSeed", () => {
       .doc(`tenants/${group.tenantId}/groups/${group.id}`)
       .update({name: "Renombrado"});
 
-    const summary = await runSeed({db, auth, password: PASSWORD});
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
 
     expect(summary.structure.updated).toBe(2);
     expect(
@@ -267,7 +282,7 @@ describe("runSeed", () => {
   });
 
   it("restores a drifted coordinator scope", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const coordinator = SEED_USERS.find(
       (u) => u.tenantId === "tenant-a" && u.role === "coordinator",
     )!;
@@ -275,7 +290,7 @@ describe("runSeed", () => {
       .doc(`memberships/${coordinator.uid}_tenant-a`)
       .update({"scope.venueIds": []});
 
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
 
     expect(
       (await db.doc(`memberships/${coordinator.uid}_tenant-a`).get()).data()
@@ -284,7 +299,7 @@ describe("runSeed", () => {
   });
 
   it("restores a drifted membership back to the seed baseline", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const coordinator = SEED_USERS.find(
       (u) => u.tenantId === "tenant-a" && u.role === "coordinator",
     )!;
@@ -292,7 +307,7 @@ describe("runSeed", () => {
       .doc(`memberships/${coordinator.uid}_tenant-a`)
       .update({role: "teacher"});
 
-    const summary = await runSeed({db, auth, password: PASSWORD});
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
 
     expect(summary.memberships.updated).toBe(1);
     expect(
@@ -454,7 +469,7 @@ describe("runSeed — players and guardians", () => {
   const guardianPath = (id: string) => `tenants/tenant-a/guardians/${id}`;
 
   it("creates the guardians and the players with their derived fields", async () => {
-    const summary = await runSeed({db, auth, password: PASSWORD});
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
     expect(summary.guardians.created).toBe(SEED_GUARDIANS.length);
     expect(summary.players.created).toBe(SEED_PLAYERS.length);
 
@@ -479,7 +494,7 @@ describe("runSeed — players and guardians", () => {
   });
 
   it("does not seed players or guardians in tenant-b", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     expect((await db.collection("tenants/tenant-b/players").get()).size).toBe(
       0,
     );
@@ -489,7 +504,7 @@ describe("runSeed — players and guardians", () => {
   });
 
   it("gives the seeded players to the real list query", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const owner = SEED_USERS.find(
       (u) => u.tenantId === "tenant-a" && u.role === "owner",
     )!;
@@ -512,11 +527,11 @@ describe("runSeed — players and guardians", () => {
   });
 
   it("restores a drifted player to the seed baseline", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const seeded = SEED_PLAYERS.find((p) => p.status === "activo")!;
     await db.doc(playerPath(seeded.id)).update({status: "retirado"});
 
-    const summary = await runSeed({db, auth, password: PASSWORD});
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
 
     expect(summary.players.updated).toBe(1);
     expect((await db.doc(playerPath(seeded.id)).get()).data()?.status).toBe(
@@ -525,11 +540,11 @@ describe("runSeed — players and guardians", () => {
   });
 
   it("restores a drifted guardian", async () => {
-    await runSeed({db, auth, password: PASSWORD});
+    await runSeed({db, auth, bucket, password: PASSWORD});
     const guardian = SEED_GUARDIANS[0];
     await db.doc(guardianPath(guardian.id)).update({firstNames: "Cambiado"});
 
-    const summary = await runSeed({db, auth, password: PASSWORD});
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
 
     expect(summary.guardians.updated).toBe(1);
     expect(
@@ -541,6 +556,7 @@ describe("runSeed — players and guardians", () => {
     await runSeed({
       db,
       auth,
+      bucket,
       password: PASSWORD,
       now: new Date("2026-01-01T00:00:00Z"),
     });
@@ -552,11 +568,67 @@ describe("runSeed — players and guardians", () => {
     await runSeed({
       db,
       auth,
+      bucket,
       password: PASSWORD,
       now: new Date("2026-06-01T00:00:00Z"),
     });
 
     const after = (await db.doc(playerPath(seeded.id)).get()).data()!;
     expect(after.createdAt.isEqual(before)).toBe(true);
+  });
+});
+
+describe("seeded documents and files", () => {
+  const documentPath = (id: string) => `tenants/tenant-a/documents/${id}`;
+
+  it("creates the documents and a file for each one that has one", async () => {
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
+    expect(summary.documents).toEqual({
+      created: SEED_DOCUMENTS.length,
+      updated: 0,
+      unchanged: 0,
+    });
+    expect(summary.files).toEqual({created: SEED_FILES, unchanged: 0});
+    for (const document of SEED_DOCUMENTS) {
+      expect((await db.doc(documentPath(document.id)).get()).exists).toBe(true);
+      if (!document.file) continue;
+      const [exists] = await bucket.file(document.file.path).exists();
+      expect(exists).toBe(true);
+      const [metadata] = await bucket.file(document.file.path).getMetadata();
+      expect(Number(metadata.size)).toBe(document.file.size);
+      expect(metadata.contentType).toBe(document.file.contentType);
+    }
+  });
+
+  it("restores a drifted document and a missing file", async () => {
+    await runSeed({db, auth, bucket, password: PASSWORD});
+    const withFile = SEED_DOCUMENTS.find((d) => d.file)!;
+    await db
+      .doc(documentPath("seed-doc-p1-policy"))
+      .update({status: "superseded"});
+    await bucket.file(withFile.file!.path).delete();
+
+    const summary = await runSeed({db, auth, bucket, password: PASSWORD});
+
+    expect(summary.documents.updated).toBe(1);
+    expect(summary.files.created).toBe(1);
+    expect(
+      (await db.doc(documentPath("seed-doc-p1-policy")).get()).data()?.status,
+    ).toBe("current");
+    expect((await bucket.file(withFile.file!.path).exists())[0]).toBe(true);
+  });
+
+  it("keeps the created timestamp of a restored document", async () => {
+    await runSeed({db, auth, bucket, password: PASSWORD});
+    const before = (
+      await db.doc(documentPath("seed-doc-p2-policy")).get()
+    ).data()!.createdAt;
+    await db.doc(documentPath("seed-doc-p2-policy")).update({type: "photo"});
+    await runSeed({db, auth, bucket, password: PASSWORD});
+    const after = (
+      await db.doc(documentPath("seed-doc-p2-policy")).get()
+    ).data()!;
+    expect(after.createdAt.isEqual(before)).toBe(true);
+    expect(after.type).toBe("policy");
   });
 });

@@ -1,6 +1,6 @@
 # SPEC 07 — Documentos y pólizas (archivos del jugador con URLs firmadas)
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** SPEC 02, SPEC 04, SPEC 05 y SPEC 06. Cubre §7.5 de `docs/producto.md` y D-08 del plan técnico.
 > **Date:** 2026-10-08
 > **Objective:** Que el personal suba, reemplace y consulte los documentos de cada jugador (identidad, póliza, autorización de datos, certificado médico y foto) con URLs firmadas, y que se vea al instante si la póliza está vigente, por vencer o vencida.
@@ -90,20 +90,20 @@ Convenciones:
 - `venueId` y `groupId` se copian al crear el documento; si el jugador cambia de grupo (spec 06), el alcance de lectura de sus documentos se actualiza en la misma transacción del cambio de grupo del módulo `player`, que escribe las dos copias a través del puerto de lectura. Si esto no es viable sin acoplar los módulos, el alcance se resuelve leyendo el jugador en cada petición y los campos se descartan; la decisión se toma en el paso 3 del plan y queda registrada en el ADR 0013.
 - Un solo documento `current` por jugador y tipo. Subir uno nuevo marca el anterior como `superseded` en la misma transacción.
 - La póliza vence al final del día `validUntil` en America/Bogota. `expiring` si faltan `policyWarningDays` días o menos; `expired` si la fecha ya pasó; `missing` si el jugador no tiene póliza `current`.
-- Rutas de Storage: subidas pendientes en `tenants/{t}/uploads/{uploadId}`; archivos confirmados en `tenants/{t}/players/{p}/documents/{docId}`.
+- Rutas de Storage: subidas pendientes en `uploads/{t}/{uploadId}` (un solo prefijo para la regla de ciclo de vida; decidido por el usuario el 2026-10-08); archivos confirmados en `tenants/{t}/players/{p}/documents/{docId}`.
 - Los metadatos del archivo (tipo y tamaño) se leen del objeto en Storage al confirmar, nunca de lo que diga el cliente.
 
 ### Rutas y contratos
 
 Todas bajo `/tenants/:tenantId`, con `Authorization: Bearer`; los esquemas zod viven junto a cada handler (ADR 0009).
 
-| Ruta | Quién | Entrada | Salida |
-| --- | --- | --- | --- |
-| `POST /players/:playerId/documents/uploads` | personal | `{ type, contentType, size }` | `201 { uploadId, uploadUrl, expiresAt }` |
-| `POST /players/:playerId/documents` | personal | `{ type, uploadId?, policy? }` (`uploadId` obligatorio salvo en `policy`) | `201 { document, policyStatus? }` |
-| `GET /players/:playerId/documents` | personal y profesor (recortado) | `?history=true` opcional | `200 { documents, policyStatus }` |
-| `GET /players/:playerId/documents/:documentId/download-url` | personal y profesor (solo `photo`, `policy`) | | `200 { url, expiresAt }` |
-| `GET /categories/:categoryId/policies` | personal | | `200 { items: [{ playerId, fullName, groupId, policy?, policyStatus }] }` |
+| Ruta                                                        | Quién                                        | Entrada                                                                   | Salida                                                                    |
+| ----------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `POST /players/:playerId/documents/uploads`                 | personal                                     | `{ type, contentType, size }`                                             | `201 { uploadId, uploadUrl, expiresAt }`                                  |
+| `POST /players/:playerId/documents`                         | personal                                     | `{ type, uploadId?, policy? }` (`uploadId` obligatorio salvo en `policy`) | `201 { document, policyStatus? }`                                         |
+| `GET /players/:playerId/documents`                          | personal y profesor (recortado)              | `?history=true` opcional                                                  | `200 { documents, policyStatus }`                                         |
+| `GET /players/:playerId/documents/:documentId/download-url` | personal y profesor (solo `photo`, `policy`) |                                                                           | `200 { url, expiresAt }`                                                  |
+| `GET /categories/:categoryId/policies`                      | personal                                     |                                                                           | `200 { items: [{ playerId, fullName, groupId, policy?, policyStatus }] }` |
 
 Reglas de las rutas:
 
@@ -192,15 +192,15 @@ functions/src/document/
 
 ## Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| La cuenta de servicio de las functions no tiene permiso para firmar URLs (D-08 lo deja pendiente). | La guía documenta el rol IAM necesario; `smoke:dev` falla con un mensaje claro si falta. |
-| El emulador no firma URLs ni aplica el ciclo de vida, así que no prueba nada de eso. | Adaptador de emulador solo para la lógica; la firma real y el ciclo de vida se verifican en `dev`. |
-| La regla de ciclo de vida no se despliega con `firebase deploy`. | Archivo versionado en el repo y comando `gcloud` en la guía; criterio de aceptación explícito. |
-| Los despliegues desde la máquina local fallan por red (`docs/guias/despliegue-con-red-inestable.md`). | Leer la guía antes de desplegar; verificar qué destinos quedaron desplegados. |
+| Risk                                                                                                  | Mitigation                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| La cuenta de servicio de las functions no tiene permiso para firmar URLs (D-08 lo deja pendiente).    | La guía documenta el rol IAM necesario; `smoke:dev` falla con un mensaje claro si falta.                                                              |
+| El emulador no firma URLs ni aplica el ciclo de vida, así que no prueba nada de eso.                  | Adaptador de emulador solo para la lógica; la firma real y el ciclo de vida se verifican en `dev`.                                                    |
+| La regla de ciclo de vida no se despliega con `firebase deploy`.                                      | Archivo versionado en el repo y comando `gcloud` en la guía; criterio de aceptación explícito.                                                        |
+| Los despliegues desde la máquina local fallan por red (`docs/guias/despliegue-con-red-inestable.md`). | Leer la guía antes de desplegar; verificar qué destinos quedaron desplegados.                                                                         |
 | Subir `venueId` y `groupId` en cada documento los deja desactualizados si el jugador cambia de grupo. | Resolver en el paso 3 del plan: actualizarlos en el cambio de grupo o leer el alcance del jugador en cada petición; el ADR 0013 registra la decisión. |
-| Un cliente confirma un `uploadId` con un objeto distinto a lo declarado. | Tipo y tamaño se leen del objeto en Storage al confirmar, nunca del cliente. |
-| Q12 (datos de menores) sigue abierta y los documentos incluyen identidad y certificados médicos. | Solo personal autorizado, deny-all para clientes y datos ficticios hasta resolver Q12. |
+| Un cliente confirma un `uploadId` con un objeto distinto a lo declarado.                              | Tipo y tamaño se leen del objeto en Storage al confirmar, nunca del cliente.                                                                          |
+| Q12 (datos de menores) sigue abierta y los documentos incluyen identidad y certificados médicos.      | Solo personal autorizado, deny-all para clientes y datos ficticios hasta resolver Q12.                                                                |
 
 ## What is **not** in this spec
 

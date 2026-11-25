@@ -152,6 +152,7 @@ const tenant = (overrides: Partial<Tenant> = {}): Tenant => ({
   name: "Argentinos Juniors",
   status: "active",
   contact: {},
+  policyWarningDays: 30,
   createdAt: new Date("2026-10-01T00:00:00Z"),
   updatedAt: new Date("2026-10-01T00:00:00Z"),
   ...overrides,

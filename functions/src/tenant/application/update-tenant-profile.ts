@@ -3,7 +3,7 @@ import {requireOwner} from "../../membership/application/require-owner.js";
 import type {Clock} from "../../shared/domain/clock.js";
 import type {UnitOfWork} from "../../shared/application/unit-of-work.js";
 import {validateName} from "../../structure/domain/validation.js";
-import type {Tenant} from "../domain/tenant.js";
+import {validatePolicyWarningDays, type Tenant} from "../domain/tenant.js";
 
 export type UpdateTenantProfileInput = {
   tenantId: string;
@@ -11,6 +11,7 @@ export type UpdateTenantProfileInput = {
   name: string;
   idrdRegistration?: string;
   contact: {email?: string; phone?: string};
+  policyWarningDays?: number;
   device?: {userAgent?: string};
 };
 
@@ -22,6 +23,7 @@ const snapshot = (tenant: Tenant): Record<string, unknown> => ({
     idrdRegistration: tenant.idrdRegistration,
   }),
   contact: tenant.contact,
+  policyWarningDays: tenant.policyWarningDays,
 });
 
 // Blank optional text is stored as absent.
@@ -44,6 +46,10 @@ export class UpdateTenantProfile {
       const idrdRegistration = optional(input.idrdRegistration);
       const email = optional(input.contact.email);
       const phone = optional(input.contact.phone);
+      const policyWarningDays =
+        input.policyWarningDays === undefined
+          ? undefined
+          : validatePolicyWarningDays(input.policyWarningDays);
 
       const tenant = await tenants.get(tenantId);
       if (!tenant) {
@@ -59,6 +65,7 @@ export class UpdateTenantProfile {
           ...(email !== undefined && {email}),
           ...(phone !== undefined && {phone}),
         },
+        policyWarningDays: policyWarningDays ?? tenant.policyWarningDays,
         createdAt: tenant.createdAt,
         updatedAt: this.clock.now(),
       };

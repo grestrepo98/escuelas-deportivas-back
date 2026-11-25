@@ -186,6 +186,8 @@ Las descargas se piden también por function, con URL firmada de corta duración
 
 **Pendiente de verificar:** que la cuenta de servicio de las functions tenga el permiso necesario para firmar URLs, y los límites de tamaño que fijemos. Si la URL firmada resulta problemática en el piloto, la alternativa es subir con el SDK de Storage y rules que consulten la membresía en Firestore.
 
+**Implementado en la spec 07** (ADR 0013): límites de JPEG, PNG, WebP o PDF de hasta 10 MB (la foto, solo imagen y hasta 2 MB), subidas pendientes en `uploads/` con borrado a 1 día y URLs de 15 y 5 minutos. El permiso de firma de la cuenta de servicio sigue sin verificarse: lo comprueba `smoke:dev` (guía `docs/guias/documentos-y-urls-firmadas.md`).
+
 **Estado:** Acordado.
 
 ## 5. Modelo de datos inicial

@@ -125,6 +125,30 @@ describe("PUT /tenants/:tenantId/profile — success", () => {
   });
 });
 
+describe("PUT /tenants/:tenantId/profile — policyWarningDays", () => {
+  it("reads a tenant without the field as 30 and keeps it when omitted", async () => {
+    const {status} = await update(owner, validInput());
+    expect(status).toBe(200);
+    expect((await tenantDoc())?.policyWarningDays).toBe(30);
+  });
+
+  it("stores a new value between 1 and 365", async () => {
+    const {status} = await update(owner, validInput({policyWarningDays: 45}));
+    expect(status).toBe(200);
+    expect((await tenantDoc())?.policyWarningDays).toBe(45);
+  });
+
+  it.each([0, 366, 1.5, "30"])("rejects %s", async (days) => {
+    const {status, body} = await update(
+      owner,
+      validInput({policyWarningDays: days}),
+    );
+    expect(status).toBe(400);
+    expect(body.error.code).toBe("invalid_argument");
+    expect(await audit()).toHaveLength(0);
+  });
+});
+
 describe("PUT /tenants/:tenantId/profile — authentication", () => {
   it("rejects a caller without a token as unauthenticated", async () => {
     const {status, body} = await update(undefined, validInput());

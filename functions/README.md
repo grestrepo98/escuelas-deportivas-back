@@ -9,16 +9,17 @@ módulo (ADR 0009). Región fija `us-central1` (ADR 0003).
 
 ```
 src/
-├── index.ts                      # setGlobalOptions + exporta las 4 APIs
+├── index.ts                      # setGlobalOptions + exporta las 5 APIs
 ├── shared/                       # domain (DomainError, Clock) · application (UnitOfWork)
 │   └── infrastructure/           # admin, unit of work, clock
 │       └── http/                 # create-api, authenticate, error-handler, parse, device
-├── audit/ membership/ tenant/ structure/ player/
+├── audit/ membership/ tenant/ structure/ player/ document/
 │   ├── domain/                   # entidades y reglas puras
 │   ├── application/              # casos de uso, puertos y testing/ (dobles en memoria)
 │   └── infrastructure/
 │       ├── firestore/            # adaptadores de los puertos
 │       ├── firebase/             # adaptadores de sistemas fuera de Firestore (Auth)
+│       ├── storage/              # adaptadores de Cloud Storage (solo document)
 │       └── http/                 # <módulo>-api.ts (onRequest) · router.ts
 │           └── routes/<nombre>/  # schema.ts (zod, el contrato) + handler.ts
 └── scripts/                      # seed, smoke-dev, create-tenant (no viajan al despliegue)
@@ -35,7 +36,7 @@ Los tests viven en `test/` y espejan `src/` (ADR 0012): `test/unit/**/*.test.ts`
 
 ## APIs y rutas
 
-Cuatro Cloud Functions `onRequest`, una por módulo, cada una con una app Express
+Cinco Cloud Functions `onRequest`, una por módulo, cada una con una app Express
 adentro. Una ruta nueva se agrega al `router.ts` del módulo, no como function nueva.
 La URL base de una API es `https://us-central1-<proyecto>.cloudfunctions.net/<api>`
 (en el emulador, `http://127.0.0.1:5001/<proyecto>/us-central1/<api>`).
@@ -66,11 +67,17 @@ La URL base de una API es `https://us-central1-<proyecto>.cloudfunctions.net/<ap
 | `playerApi` | `GET …/players/:playerId/history` | personal y `teacher` | Cambios de grupo y de estado, el más reciente primero |
 | `playerApi` | `GET /tenants/:tenantId/guardians?documentType&documentNumber` | personal | Busca un acudiente por documento (`{guardian: null}` si no existe o el coordinador no lo alcanza) |
 | `playerApi` | `PUT /tenants/:tenantId/guardians/:guardianId` | personal | Edita al acudiente y actualiza su nombre en los jugadores vinculados |
+| `documentApi` | `POST /tenants/:tenantId/players/:playerId/documents/uploads` | personal (`coordinator` en sus sedes) | Paso 1 de D-08: valida `{type, contentType, size}` (JPEG, PNG, WebP o PDF de hasta 10 MB; la foto, solo imagen y hasta 2 MB) y devuelve `{uploadId, uploadUrl, uploadMethod, uploadHeaders, expiresAt}` (`201`, 15 minutos). El cliente sube con ese método y **todas** esas cabeceras |
+| `documentApi` | `POST …/players/:playerId/documents` | personal | Paso 3: confirma `{type, uploadId}` leyendo tipo y tamaño del objeto guardado, o registra una póliza sin archivo con `{type: "policy", policy}` (`201`). Confirmar dos veces el mismo `uploadId` devuelve el mismo documento; subir otro del mismo tipo deja el anterior en `superseded` |
+| `documentApi` | `GET …/players/:playerId/documents?history=true` | personal y `teacher` (solo `photo` y `policy` de sus grupos) | Documentos vigentes (con `history=true`, también las versiones reemplazadas) y `policyStatus` (`valid`, `expiring`, `expired` o `missing`) |
+| `documentApi` | `GET …/players/:playerId/documents/:documentId/download-url` | personal y `teacher` (solo `photo` y `policy`) | URL firmada de descarga de 5 minutos |
+| `documentApi` | `GET /tenants/:tenantId/categories/:categoryId/policies` | personal (`coordinator`, solo sus sedes) | Jugadores de la categoría con su póliza y estado, incluidos los que no tienen (`missing`), ordenados por grupo y nombre |
 
 Cada escritura deja exactamente una entrada de bitácora en la misma transacción.
 Detalle de las reglas en `docs/adr/0007-estructura-de-la-organizacion.md` (estructura)
 `docs/adr/0010-usuarios-invitacion-y-alcance.md` (usuarios y alcance) y
-`docs/adr/0011-jugadores-y-acudientes.md` (jugadores, acudientes, cursor e índices). La
+`docs/adr/0011-jugadores-y-acudientes.md` (jugadores, acudientes, cursor e índices) y
+`docs/adr/0013-documentos-y-polizas.md` (documentos, URLs firmadas y estado de la póliza). La
 invitación no envía correo: el dueño comparte el enlace de restablecimiento.
 
 El contrato de cada ruta vive en el `schema.ts` junto a su handler: el `tenantId`
@@ -123,11 +130,11 @@ npm run format:check       # lo mismo sin escribir; lo corre el CI
 npm run typecheck
 npm run test:unit          # sin emulador
 npm run test:rules         # emuladores Firestore + Storage
-npm run test:integration   # compila y levanta Auth + Firestore + Functions
+npm run test:integration   # compila y levanta Auth + Firestore + Functions + Storage
 npm run seed:emulator      # datos de prueba (dentro de emulators:exec o start)
-SEED_PASSWORD=... npm run seed:dev
+STORAGE_BUCKET=<bucket> SEED_PASSWORD=... npm run seed:dev   # el bucket es para los archivos del seed
 npm run tenant:create -- --target dev --tenant-id <id> --name <nombre> --owner-email <correo>
-SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev   # APIs desplegadas
+STORAGE_BUCKET=<bucket> SEED_PASSWORD=... FIREBASE_API_KEY=... npm run smoke:dev   # APIs desplegadas; el bucket es opcional (limpieza)
 npm run smoke:emulator     # verifica el propio smoke test en local
 ```
 
@@ -165,6 +172,12 @@ decidir si inicializar la app por defecto (daba `app/no-app` y un 500 solo en `d
 `shared/infrastructure/admin.ts` busca la app `[DEFAULT]` por nombre y
 `test/integration/shared/infrastructure/admin.integration.test.ts` lo cubre. Por eso el humo en `dev` (`npm run smoke:dev`) es parte de la verificación.
 
+Lo mismo pasa con los documentos (ADR 0013): el emulador de Storage **no firma URLs**, así que
+con `FUNCTIONS_EMULATOR` se usa `EmulatorFileStorage`, que apunta a la API REST del emulador. La
+firma real, el permiso `signBlob` de la cuenta de servicio, los índices compuestos de `documents`
+y la regla de ciclo de vida de `uploads/` (`storage.lifecycle.json`, que se aplica con `gcloud`)
+solo se prueban en `dev`. Cómo configurarlos: `docs/guias/documentos-y-urls-firmadas.md`.
+
 ## Seed
 
 `src/scripts/seed.ts` crea `tenant-a` con un usuario por rol y
@@ -178,6 +191,13 @@ Desde la spec 02 el seed también siembra estructura con ids fijos: en `tenant-a
 1 sede. El `scope` del coordinador seed apunta a la sede Norte y el del profesor
 seed al grupo "Sub-10 Norte". Sigue siendo idempotente y restaura lo que se
 desvió (por ejemplo, una sede seed cerrada).
+
+Desde la spec 07 también siembra 7 documentos ficticios de `tenant-a` y los archivos
+diminutos de los que tienen uno (un PDF y un PNG de 1×1). Las pólizas quedan en cada
+estado (vigente, por vencer, vencida con una versión anterior y sin archivo, y jugadores
+sin póliza); sus fechas son desplazamientos desde el día en que corre el seed, así que los
+estados se mantienen al repetirlo. Necesita el bucket: en el emulador lo deduce, en `dev`
+exige `STORAGE_BUCKET`.
 
 ## Alta de una organización
 

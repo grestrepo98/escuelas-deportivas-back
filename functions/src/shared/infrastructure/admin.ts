@@ -1,6 +1,7 @@
 import {type App, getApp, getApps, initializeApp} from "firebase-admin/app";
 import {type Auth, getAuth} from "firebase-admin/auth";
 import {type Firestore, getFirestore} from "firebase-admin/firestore";
+import {getStorage} from "firebase-admin/storage";
 
 const DEFAULT_APP_NAME = "[DEFAULT]";
 
@@ -20,4 +21,12 @@ export function firestore(): Firestore {
 
 export function adminAuth(): Auth {
   return getAuth(defaultApp());
+}
+
+// The default bucket comes from the app config (FIREBASE_CONFIG in the
+// Functions runtime); STORAGE_BUCKET overrides it.
+export function storageBucket(
+  name = process.env.STORAGE_BUCKET,
+): ReturnType<ReturnType<typeof getStorage>["bucket"]> {
+  return getStorage(defaultApp()).bucket(name);
 }

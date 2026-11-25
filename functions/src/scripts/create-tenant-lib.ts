@@ -2,6 +2,7 @@ import {validateName} from "../structure/domain/validation.js";
 import type {Auth, UserRecord} from "firebase-admin/auth";
 import type {Firestore} from "firebase-admin/firestore";
 import {FirestoreMembershipRepository} from "../membership/infrastructure/firestore/firestore-membership-repository.js";
+import {DEFAULT_POLICY_WARNING_DAYS} from "../tenant/domain/tenant.js";
 import {FirestoreTenantRepository} from "../tenant/infrastructure/firestore/firestore-tenant-repository.js";
 import {DEV_PROJECT_ID, type SeedTarget} from "./seed-lib.js";
 
@@ -141,6 +142,7 @@ export async function runCreateTenant(
       name,
       status: "active",
       contact: {},
+      policyWarningDays: DEFAULT_POLICY_WARNING_DAYS,
       createdAt: now,
       updatedAt: now,
     });

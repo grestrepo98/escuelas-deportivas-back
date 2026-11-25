@@ -33,6 +33,8 @@ const DOCS = [
   "tenants/tenant-b/players/player-2",
   "tenants/tenant-b/players/player-2/history/entry-2",
   "tenants/tenant-b/guardians/guardian-2",
+  "tenants/tenant-a/documents/document-1",
+  "tenants/tenant-b/documents/document-2",
   "memberships/user-a_tenant-a",
   "memberships/user-b_tenant-b",
 ];
@@ -51,11 +53,13 @@ const COLLECTIONS = [
   "tenants/tenant-b/players",
   "tenants/tenant-b/players/player-2/history",
   "tenants/tenant-b/guardians",
+  "tenants/tenant-a/documents",
+  "tenants/tenant-b/documents",
   "memberships",
 ];
 
 // A collection group query would reach every tenant at once.
-const COLLECTION_GROUPS = ["players", "history", "guardians"];
+const COLLECTION_GROUPS = ["players", "history", "guardians", "documents"];
 
 let env: RulesTestEnvironment;
 

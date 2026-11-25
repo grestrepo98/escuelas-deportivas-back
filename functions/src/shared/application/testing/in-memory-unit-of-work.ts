@@ -6,6 +6,7 @@ import type {
 import type {TransactionContext, UnitOfWork} from "../unit-of-work.js";
 import type {InMemoryAuditLogWriter} from "../../../audit/application/testing/in-memory-audit-log-writer.js";
 import type {InMemoryMembershipRepository} from "../../../membership/application/testing/in-memory-membership-repository.js";
+import {InMemoryDocumentRepository} from "../../../document/application/testing/in-memory-document-repository.js";
 import {FakeClock} from "./fake-clock.js";
 import {InMemoryGuardianRepository} from "../../../player/application/testing/in-memory-guardian-repository.js";
 import {InMemoryPlayerHistoryWriter} from "../../../player/application/testing/in-memory-player-history-writer.js";
@@ -21,6 +22,7 @@ type OptionalRepositories = {
   players: InMemoryPlayerRepository;
   guardians: InMemoryGuardianRepository;
   playerHistory: InMemoryPlayerHistoryWriter;
+  documents: InMemoryDocumentRepository;
 };
 
 // Snapshot-and-restore transaction: all-or-nothing, like the real adapter.
@@ -32,6 +34,7 @@ export class InMemoryUnitOfWork implements UnitOfWork {
   readonly players: InMemoryPlayerRepository;
   readonly guardians: InMemoryGuardianRepository;
   readonly playerHistory: InMemoryPlayerHistoryWriter;
+  readonly documents: InMemoryDocumentRepository;
 
   constructor(
     private readonly memberships: InMemoryMembershipRepository,
@@ -48,6 +51,7 @@ export class InMemoryUnitOfWork implements UnitOfWork {
       repositories.groups ?? new InMemoryStructureRepository<Group>("group");
     this.players = repositories.players ?? new InMemoryPlayerRepository();
     this.guardians = repositories.guardians ?? new InMemoryGuardianRepository();
+    this.documents = repositories.documents ?? new InMemoryDocumentRepository();
     this.playerHistory =
       repositories.playerHistory ??
       new InMemoryPlayerHistoryWriter(
@@ -66,6 +70,7 @@ export class InMemoryUnitOfWork implements UnitOfWork {
       players: this.players.snapshot(),
       guardians: this.guardians.snapshot(),
       history: this.playerHistory.snapshot(),
+      documents: this.documents.snapshot(),
     };
     try {
       return await work({
@@ -78,6 +83,7 @@ export class InMemoryUnitOfWork implements UnitOfWork {
         players: this.players,
         guardians: this.guardians,
         playerHistory: this.playerHistory,
+        documents: this.documents,
       });
     } catch (error) {
       this.memberships.restore(snapshots.memberships);
@@ -89,6 +95,7 @@ export class InMemoryUnitOfWork implements UnitOfWork {
       this.players.restore(snapshots.players);
       this.guardians.restore(snapshots.guardians);
       this.playerHistory.restore(snapshots.history);
+      this.documents.restore(snapshots.documents);
       throw error;
     }
   }
